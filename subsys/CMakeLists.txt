@@ -2,6 +2,7 @@
 
 add_subdirectory(canbus)
 add_subdirectory(debug)
+add_subdirectory(elfloader)
 add_subdirectory(fb)
 add_subdirectory(fs)
 add_subdirectory(ipc)
