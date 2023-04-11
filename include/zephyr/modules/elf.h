@@ -4,16 +4,36 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  */
-#ifndef ELF_H
-#define ELF_H
+#ifndef ZEPHYR_MODULE_ELF_H_
+#define ZEPHYR_MODULE_ELF_H_
 
 #include <stdint.h>
+
+/**
+ * @brief Type aliases for 32 bit ELF
+ * @defgroup elf_32bit_types
+ *
+
+
+
+@{
+ */
 
 typedef uint32_t elf32_addr;
 typedef uint16_t elf32_half;
 typedef uint32_t elf32_off;
 typedef int32_t elf32_sword;
 typedef uint32_t elf32_word;
+
+/**
+ * @}
+ */
+
+/**
+ * @brief Type aliases for 64 bit ELF
+ * @defgroup elf_64bit_types
+ * @{
+ */
 
 typedef uint64_t elf64_addr;
 typedef uint16_t elf64_half;
@@ -23,11 +43,27 @@ typedef uint32_t elf64_word;
 typedef int64_t elf64_sxword;
 typedef uint64_t elf64_xword;
 
-/*
- * ELF Header(32-bit)
+/**
+ * @}
  */
+
+
+/**
+ * @brief ELF identifier block
+ *
+ * 4 byte magic (.ELF)
+ * 1 byte class (Invalid, 32 bit, 64 bit)
+ * 1 byte endianness (Invalid, LSB, MSB)
+ * 1 byte version (1)
+ * 1 byte OS ABI (0 None, 1 HP-UX, 2 NetBSD, 3 Linux)
+ * 1 byte ABI (0)
+ * 7 bytes padding
+ *  */
 #define EI_NIDENT 16
 
+/**
+ * @brief ELF Header(32-bit)
+ */
 struct elf32_ehdr {
 	unsigned char e_ident[EI_NIDENT];
 	elf32_half e_type;
@@ -45,8 +81,8 @@ struct elf32_ehdr {
 	elf32_half e_shstrndx;
 };
 
-/*
- * ELF Header(64-bit)
+/**
+ * @brief ELF Header(64-bit)
  */
 struct elf64_ehdr {
 	unsigned char e_ident[EI_NIDENT];
@@ -65,11 +101,28 @@ struct elf64_ehdr {
 	elf64_half e_shstrndx;
 };
 
-/*
- * ELF file type
+/**
+ * @brief ELF file type
+ * @defgroup elf_file_type ELF file types
+ * @ingroup elf
+ * @{
  */
-#define ET_REL 0x1
-#define ET_DYN 0x3
+
+/** Relocatable (unlinked) ELF */
+#define ET_REL  1
+
+/** Executable (without PIC/PIE) ELF */
+#define ET_EXEC 2
+
+/** Dynamic (executable with PIC/PIE or shared lib) ELF */
+#define ET_DYN  3
+
+/** Core Dump */
+#define ET_CORE 4
+
+/**
+ * @}
+ */
 
 /*
  * Section Header(32-bit)
@@ -172,13 +225,29 @@ struct elf32_rel {
 #define ELF32_R_TYPE(i) ((i) & 0xff)
 
 /*
- * Relocation type(i386)
+ * Relocation type (i386)
  */
-#define R_386_32 0x1
-#define R_386_PC32 0x2
-#define R_386_GLOB_DAT 0x6
-#define R_386_JUMP_SLOT 0x7
-#define R_386_RELATIVE 0x8
+#define R_386_NONE 0
+#define R_386_32 1
+#define R_386_PC32 2
+#define R_386_GOT32 3
+#define R_386_PLT32 4
+#define R_386_COPY 5
+#define R_386_GLOB_DAT 6
+#define R_386_JMP_SLOT 7
+#define R_386_RELATIVE 8
+#define R_386_GOTOFF 9
+
+/*
+ * Relocation type (aarch32)
+ */
+#define R_ARM_NONE 0
+#define R_ARM_PC24 1
+#define R_ARM_ABS32 2
+#define R_ARM_REL32 3
+#define R_ARM_COPY 4
+#define R_ARM_CALL 28
+#define R_ARM_V4BX 40
 
 /*
  * Relocation entry(64-bit)
@@ -248,31 +317,31 @@ struct elf64_dyn {
 };
 
 #ifdef CONFIG_64BIT
-	typedef struct elf64_ehdr elf_ehdr_t;
-	typedef struct elf64_shdr elf_shdr_t;
-	typedef struct elf64_phdr elf_phdr_t;
-	typedef elf64_addr elf_addr;
-	typedef elf64_half elf_half;
-	typedef elf64_xword elf_word;
-	typedef struct elf64_rela elf_rel_t;
-	typedef struct elf64_sym elf_sym_t;
-	#define ELF_R_SYM ELF64_R_SYM
-	#define ELF_R_TYPE ELF64_R_TYPE
-	#define ELF_ST_BIND ELF64_ST_BIND
-	#define ELF_ST_TYPE ELF64_ST_TYPE
+typedef struct elf64_ehdr elf_ehdr_t;
+typedef struct elf64_shdr elf_shdr_t;
+typedef struct elf64_phdr elf_phdr_t;
+typedef elf64_addr elf_addr;
+typedef elf64_half elf_half;
+typedef elf64_xword elf_word;
+typedef struct elf64_rela elf_rel_t;
+typedef struct elf64_sym elf_sym_t;
+#define ELF_R_SYM ELF64_R_SYM
+#define ELF_R_TYPE ELF64_R_TYPE
+#define ELF_ST_BIND ELF64_ST_BIND
+#define ELF_ST_TYPE ELF64_ST_TYPE
 #else
-	typedef struct elf32_ehdr elf_ehdr_t;
-	typedef struct elf32_shdr elf_shdr_t;
-	typedef struct elf32_phdr elf_phdr_t;
-	typedef elf32_addr elf_addr;
-	typedef elf32_half elf_half;
-	typedef elf32_word elf_word;
-	typedef struct elf32_rel elf_rel_t;
-	typedef struct elf32_sym elf_sym_t;
-	#define ELF_R_SYM ELF32_R_SYM
-	#define ELF_R_TYPE ELF32_R_TYPE
-	#define ELF_ST_BIND ELF32_ST_BIND
-	#define ELF_ST_TYPE ELF32_ST_TYPE
+typedef struct elf32_ehdr elf_ehdr_t;
+typedef struct elf32_shdr elf_shdr_t;
+typedef struct elf32_phdr elf_phdr_t;
+typedef elf32_addr elf_addr;
+typedef elf32_half elf_half;
+typedef elf32_word elf_word;
+typedef struct elf32_rel elf_rel_t;
+typedef struct elf32_sym elf_sym_t;
+#define ELF_R_SYM ELF32_R_SYM
+#define ELF_R_TYPE ELF32_R_TYPE
+#define ELF_ST_BIND ELF32_ST_BIND
+#define ELF_ST_TYPE ELF32_ST_TYPE
 #endif
 
-#endif /* ELF_H */
+#endif /* ZEPHYR_DYNELF_ELF_H */
