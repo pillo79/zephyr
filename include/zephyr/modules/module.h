@@ -42,21 +42,32 @@ struct module {
 };
 
 /**
- * @brief Loadable code stream
+ * @brief Module loader context
  *
  * A source of an ELF stream/blob
  */
 struct module_stream {
 	int (*read)(struct module_stream *s, void *buf, size_t len);
 	int (*seek)(struct module_stream *s, size_t pos);
-	elf_ehdr_t elf_hdr;
+	elf_ehdr_t hdr;
 	elf_shdr_t strtab;
+	elf_shdr_t shstrtab;
 	elf_shdr_t symtab;
 	elf_shdr_t text;
 	elf_shdr_t rodata;
 	elf_shdr_t bss;
 	elf_shdr_t data;
 };
+
+/**
+ * @brief Read a length of bytes into the given buffer
+ */
+int module_read(struct module_stream *ms, void *buf, size_t len);
+
+/**
+ * @brief Seek to an absolute location of the module (elf) file
+ */
+int module_seek(struct module_stream *ms, size_t pos);
 
 /**
  * @brief List head of loaded modules
@@ -116,7 +127,8 @@ void *module_find_sym(struct module_symtable *sym_table, const char *sym_name);
  * instructions are architecture specific and each architecture supporting modules
  * must implement this.
  * */
-void arch_elf_relocate_rel(struct module *m, elf_rel_t *rel, elf_shdr_t *shdr, elf_sym_t *sym);
+void arch_elf_relocate_rel(struct module_stream *ms, struct module *m, elf_rel_t *rel,
+			   elf_shdr_t *shdr, elf_sym_t *sym);
 
 /**
  * @brief Architecture specific function for relocating
@@ -125,7 +137,8 @@ void arch_elf_relocate_rel(struct module *m, elf_rel_t *rel, elf_shdr_t *shdr, e
  * instructions are architecture specific and each architecture supporting modules
  * must implement this.
  */
-void arch_elf_relocate_dyn(struct module *m, elf_rel_t *rel, elf_shdr_t *shdr, elf_sym_t *sym);
+void arch_elf_relocate_dyn(struct module_stream *ms, struct module *m, elf_rel_t *rel,
+			   elf_shdr_t *shdr, elf_sym_t *sym);
 
 
 #endif /* ELFLOADER_H */

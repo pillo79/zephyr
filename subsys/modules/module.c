@@ -50,12 +50,12 @@ int module_buf_seek(struct module_stream *s, size_t pos)
 }
 
 
-static inline int mod_read(struct module_stream *s, void *buf, size_t len)
+int module_read(struct module_stream *s, void *buf, size_t len)
 {
 	return s->read(s, buf, len);
 }
 
-static inline int mod_seek(struct module_stream *s, size_t pos)
+int module_seek(struct module_stream *s, size_t pos)
 {
 	return s->seek(s, pos);
 }
@@ -115,12 +115,13 @@ static int module_load_rel(struct module_stream *ms, struct module *m)
 	elf_shdr_t *shdr_array;
 	elf_sym_t *sym;
 	elf_rel_t rel;
-	char str_name[50];
+	char str_name[32];
 
 	m->mem_sz = 0;
 
-	mod_seek(ms, 0);
-	mod_read(ms, (void *)&ehdr, sizeof(ehdr));
+	module_seek(ms, 0);
+	module_read(ms, (void *)&ehdr, sizeof(ehdr));
+	ms->hdr = ehdr;
 
 	size_t shdr_array_sz = ehdr.e_shnum * sizeof(elf_shdr_t);
 	LOG_DBG("allocating section header array for %d sections, size %d", ehdr.e_shnum, shdr_array_sz);
@@ -131,8 +132,8 @@ static int module_load_rel(struct module_stream *ms, struct module *m)
 	flag = false;
 	for (i = 0; i < ehdr.e_shnum; i++) {
 		size_t pos = ehdr.e_shoff + i*ehdr.e_shentsize;
-		mod_seek(ms, pos);
-		mod_read(ms, (void *)&shdr_array[i], sizeof(elf_shdr_t));
+		module_seek(ms, pos);
+		module_read(ms, (void *)&shdr_array[i], sizeof(elf_shdr_t));
 
 		LOG_DBG("section %d at %x: name %d, type %d, flags %x, addr %x, size %d",
 			i,
@@ -148,8 +149,13 @@ static int module_load_rel(struct module_stream *ms, struct module *m)
 			LOG_DBG("symbol table at section %d", i);
 			ms->symtab = shdr_array[i];
 		} else if (shdr_array[i].sh_type == SHT_STRTAB) {
-			LOG_DBG("string table at section %d", i);
-			ms->strtab = shdr_array[i];
+			if (ehdr.e_shstrndx == i) {
+				LOG_DBG("shstrtab at %d", i);
+				ms->shstrtab = shdr_array[i];
+			} else {
+				LOG_DBG("strtab at %d", i);
+				ms->strtab = shdr_array[i];
+			}
 		}
 		if ((shdr_array[i].sh_flags & SHF_ALLOC)
 				&& (shdr_array[i].sh_size > 0)) {
@@ -198,8 +204,8 @@ static int module_load_rel(struct module_stream *ms, struct module *m)
 	for (i = 0; i < ehdr.e_shnum; i++) {
 		elf32_word str_idx = shdr_array[i].sh_name;
 		char sec_name[32];
-		mod_seek(ms, ms->strtab.sh_offset + str_idx);
-		mod_read(ms, sec_name, sizeof(sec_name));
+		module_seek(ms, ms->shstrtab.sh_offset + str_idx);
+		module_read(ms, sec_name, sizeof(sec_name));
 		if (strncmp(sec_name, ".text", sizeof(sec_name)) == 0) {
 			ms->text = shdr_array[i];
 		} else if (strncmp(sec_name, ".data", sizeof(sec_name)) == 0) {
@@ -220,8 +226,8 @@ static int module_load_rel(struct module_stream *ms, struct module *m)
 	sym_cnt = ms->symtab.sh_size / sizeof(elf_sym_t);
 	sym = (elf_sym_t *)ms->symtab.sh_addr;
 	for (i = 0; i < sym_cnt; i++) {
-		mod_seek(ms, ms->strtab.sh_offset + sym[i].st_name);
-		mod_read(ms, str_name, sizeof(str_name));
+		module_seek(ms, ms->strtab.sh_offset + sym[i].st_name);
+		module_read(ms, str_name, sizeof(str_name));
 		switch (sym[i].st_shndx) {
 		case SHN_UNDEF:
 			LOG_DBG("Map symbol: %s\n", str_name);
@@ -241,6 +247,7 @@ static int module_load_rel(struct module_stream *ms, struct module *m)
 	}
 
 	/* symbols relocation */
+	elf_sym_t rel_sym;
 	for (i = 0; i < ehdr.e_shnum - 1; i++) {
 		/* find out relocation sections */
 		if ((shdr_array[i].sh_type == SHT_REL)
@@ -249,20 +256,20 @@ static int module_load_rel(struct module_stream *ms, struct module *m)
 
 			for (j = 0; j < rel_cnt; j++) {
 				/* get each relocation entry */
-				mod_seek(ms, shdr_array[i].sh_offset
+				module_seek(ms, shdr_array[i].sh_offset
 						+ j * sizeof(elf_rel_t));
-				mod_read(ms, (void *)&rel, sizeof(elf_rel_t));
+				module_read(ms, (void *)&rel, sizeof(elf_rel_t));
 
 				/* get corresponding symbol */
-				mod_seek(ms, ms->symtab.sh_offset
+				module_seek(ms, ms->symtab.sh_offset
 						+ ELF_R_SYM(rel.r_info)
 						* sizeof(elf_sym_t));
-				mod_read(ms, (void *)&sym, sizeof(sym));
+				module_read(ms, &rel_sym, sizeof(elf_sym_t));
 
 				/* relocation */
-				arch_elf_relocate_rel(m, &rel,
-					&shdr_array[shdr_array[i].sh_info],
-					sym);
+				arch_elf_relocate_rel(ms, m, &rel,
+					&shdr_array[i],
+					&rel_sym);
 			}
 		}
 	}
@@ -281,17 +288,17 @@ static int module_load_dyn(struct module_stream *ms, struct module *m)
 	elf_rel_t rel;
 	elf_sym_t sym;
 	bool flag;
-	char str_name[50];
+	char str_name[32];
 
-	mod_seek(ms, 0);
-	mod_read(ms, (void *)&ehdr, sizeof(ehdr));
+	module_seek(ms, 0);
+	module_read(ms, (void *)&ehdr, sizeof(ehdr));
 
 	/* iterate all program segments to get total necessary memory size */
 	flag = false;
 	end_addr = 0;
 	for (i = 0; i < ehdr.e_phnum; i++) {
-		mod_seek(ms, ehdr.e_phoff + i * ehdr.e_phentsize);
-		mod_read(ms, (void *)&phdr, sizeof(phdr));
+		module_seek(ms, ehdr.e_phoff + i * ehdr.e_phentsize);
+		module_read(ms, (void *)&phdr, sizeof(phdr));
 		if (phdr.p_type == PT_LOAD) {
 			if (!flag) {
 				m->virt_start_addr = phdr.p_vaddr;
@@ -318,11 +325,11 @@ static int module_load_dyn(struct module_stream *ms, struct module *m)
 
 	/* copy segments into memory */
 	for (i = 0; i < ehdr.e_phnum; i++) {
-		mod_seek(ms, ehdr.e_phoff + i * ehdr.e_phentsize);
-		mod_read(ms, (void *)&phdr, sizeof(phdr));
+		module_seek(ms, ehdr.e_phoff + i * ehdr.e_phentsize);
+		module_read(ms, (void *)&phdr, sizeof(phdr));
 		if (phdr.p_type == PT_LOAD) {
-			mod_seek(ms, phdr.p_offset);
-			mod_read(ms, (void *)(m->load_start_addr
+			module_seek(ms, phdr.p_offset);
+			module_read(ms, (void *)(m->load_start_addr
 						+ phdr.p_vaddr
 						- m->virt_start_addr),
 					phdr.p_filesz);
@@ -331,8 +338,8 @@ static int module_load_dyn(struct module_stream *ms, struct module *m)
 
 	/* doing symbols relocation */
 	for (i = 0; i < ehdr.e_shnum; i++) {
-		mod_seek(ms, ehdr.e_shoff + i * ehdr.e_shentsize);
-		mod_read(ms, (void *)&shdr, sizeof(shdr));
+		module_seek(ms, ehdr.e_shoff + i * ehdr.e_shentsize);
+		module_read(ms, (void *)&shdr, sizeof(shdr));
 		/* get .dynsym and .dynstr section, they will be used
 		 * for symbols relocation and finding exported symbols
 		 * of module.
@@ -341,9 +348,9 @@ static int module_load_dyn(struct module_stream *ms, struct module *m)
 			/* get .dynsym section */
 			dynsym_shdr = shdr;
 			/* get .dynstr section */
-			mod_seek(ms, ehdr.e_shoff + dynsym_shdr.sh_link
+			module_seek(ms, ehdr.e_shoff + dynsym_shdr.sh_link
 					* ehdr.e_shentsize);
-			mod_read(ms, (void *)&dynstr_shdr,
+			module_read(ms, (void *)&dynstr_shdr,
 					sizeof(dynstr_shdr));
 		}
 		/* find out relocation sections */
@@ -352,20 +359,20 @@ static int module_load_dyn(struct module_stream *ms, struct module *m)
 			rel_cnt = shdr.sh_size / sizeof(elf_rel_t);
 			for (j = 0; j < rel_cnt; j++) {
 				/* get each relocation entry */
-				mod_seek(ms, shdr.sh_offset
+				module_seek(ms, shdr.sh_offset
 						+ j * sizeof(elf_rel_t));
-				mod_read(ms, (void *)&rel, sizeof(elf_rel_t));
+				module_read(ms, (void *)&rel, sizeof(elf_rel_t));
 
 				/* get corresponding symbol */
-				mod_seek(ms, dynsym_shdr.sh_offset
+				module_seek(ms, dynsym_shdr.sh_offset
 						+ ELF_R_SYM(rel.r_info)
 						* sizeof(elf_sym_t));
-				mod_read(ms, (void *)&sym, sizeof(sym));
+				module_read(ms, (void *)&sym, sizeof(sym));
 
 				/* get corresponding symbol str name */
-				mod_seek(ms, dynstr_shdr.sh_offset
+				module_seek(ms, dynstr_shdr.sh_offset
 						+ sym.st_name);
-				mod_read(ms, str_name, sizeof(str_name));
+				module_read(ms, str_name, sizeof(str_name));
 
 				/* find out symbol's real address */
 				if (sym.st_shndx == SHN_UNDEF) {
@@ -404,8 +411,8 @@ static int module_load_dyn(struct module_stream *ms, struct module *m)
 	count = 0;
 	dynsym_cnt = dynsym_shdr.sh_size / sizeof(elf_sym_t);
 	for (j = 0; j < dynsym_cnt; j++) {
-		mod_seek(ms, dynsym_shdr.sh_offset + j * sizeof(elf_sym_t));
-		mod_read(ms, (void *)&sym, sizeof(sym));
+		module_seek(ms, dynsym_shdr.sh_offset + j * sizeof(elf_sym_t));
+		module_read(ms, (void *)&sym, sizeof(sym));
 		if ((ELF_ST_BIND(sym.st_info) == STB_GLOBAL)
 				&& (ELF_ST_TYPE(sym.st_info) == STT_FUNC)
 				&& (sym.st_shndx != SHN_UNDEF)) {
@@ -423,9 +430,9 @@ static int module_load_dyn(struct module_stream *ms, struct module *m)
 
 	/* get each exported symbols's address and string name */
 	for (j = 0, count = 0; j < dynsym_cnt; j++) {
-		mod_seek(ms, dynsym_shdr.sh_offset
+		module_seek(ms, dynsym_shdr.sh_offset
 				+ j * sizeof(elf_sym_t));
-		mod_read(ms, (void *)&sym, sizeof(sym));
+		module_read(ms, (void *)&sym, sizeof(sym));
 		if ((ELF_ST_BIND(sym.st_info) == STB_GLOBAL)
 				&& (ELF_ST_TYPE(sym.st_info) == STT_FUNC)
 				&& (sym.st_shndx != SHN_UNDEF)) {
@@ -436,9 +443,9 @@ static int module_load_dyn(struct module_stream *ms, struct module *m)
 				+ m->load_start_addr;
 
 			/* get symbol's string name */
-			mod_seek(ms, dynstr_shdr.sh_offset
+			module_seek(ms, dynstr_shdr.sh_offset
 					+ sym.st_name);
-			mod_read(ms, str_name, sizeof(str_name));
+			module_read(ms, str_name, sizeof(str_name));
 			len = strlen(str_name) + 1;
 			m->sym_tab.syms[count].name = k_heap_alloc(&module_heap, len, K_NO_WAIT);
 			if (m->sym_tab.syms[count].name == NULL) {
@@ -460,8 +467,8 @@ int module_load(struct module_stream *ms, const char name[16], struct module **m
 	int ret;
 	elf_ehdr_t ehdr;
 
-	mod_seek(ms, 0);
-	mod_read(ms, (void *)&ehdr, sizeof(ehdr));
+	module_seek(ms, 0);
+	module_read(ms, (void *)&ehdr, sizeof(ehdr));
 
 	/* check whether this is an valid elf file */
 	if (memcmp(ehdr.e_ident, ELF_MAGIC, sizeof(ELF_MAGIC)) != 0) {
