@@ -28,13 +28,7 @@ int module_buf_read(struct module_stream *s, void *buf, size_t len)
 	size_t end = MIN(buf_s->pos + len, buf_s->len);
 	size_t read_len = end - buf_s->pos;
 
-	LOG_DBG("reading from pos %ld (%p) len %d, new pos %d (%p), read_len %d",
-		buf_s->pos, (void *)&buf_s->buf[buf_s->pos],
-		len, end, (void *)&buf_s->buf[end],
-		read_len);
-
 	memcpy(buf, buf_s->buf + buf_s->pos, read_len);
-	LOG_HEXDUMP_DBG(buf_s->buf + buf_s->pos, read_len, "Read from buffer");
 	buf_s->pos = end;
 
 	return read_len;
@@ -110,165 +104,174 @@ static int module_load_rel(struct module_stream *ms, struct module *m)
 {
 	elf_ehdr_t ehdr;
 	elf_word i, j, sym_cnt, rel_cnt;
-	bool flag;
-	elf_addr ptr, sym_addr;
-	elf_shdr_t *shdr_array;
-	elf_sym_t *sym;
 	elf_rel_t rel;
-	char str_name[32];
+	char name[32];
 
-	m->mem_sz = 0;
+	m->mem_size = 0;
+	m->sym_tab.sym_cnt = 0;
 
 	module_seek(ms, 0);
 	module_read(ms, (void *)&ehdr, sizeof(ehdr));
+
 	ms->hdr = ehdr;
 
-	size_t shdr_array_sz = ehdr.e_shnum * sizeof(elf_shdr_t);
-	LOG_DBG("allocating section header array for %d sections, size %d", ehdr.e_shnum, shdr_array_sz);
+	elf_shdr_t shdr;
+	size_t pos = ehdr.e_shoff;
 
-	shdr_array = (elf_shdr_t *)k_heap_alloc(&module_heap,shdr_array_sz, K_NO_WAIT);
-
-	/* iterate all sections and get total necessary memory size */
-	flag = false;
+	/* Find string tables */
 	for (i = 0; i < ehdr.e_shnum; i++) {
-		size_t pos = ehdr.e_shoff + i*ehdr.e_shentsize;
 		module_seek(ms, pos);
-		module_read(ms, (void *)&shdr_array[i], sizeof(elf_shdr_t));
+		module_read(ms, (void *)&shdr, sizeof(elf_shdr_t));
+
+		pos += ehdr.e_shentsize;
 
 		LOG_DBG("section %d at %x: name %d, type %d, flags %x, addr %x, size %d",
 			i,
 			ehdr.e_shoff+i*ehdr.e_shentsize,
-			shdr_array[i].sh_name,
-			shdr_array[i].sh_type,
-			shdr_array[i].sh_flags,
-			shdr_array[i].sh_addr,
-			shdr_array[i].sh_size);
+			shdr.sh_name,
+			shdr.sh_type,
+			shdr.sh_flags,
+			shdr.sh_addr,
+			shdr.sh_size);
 
-		/* get symtab and strtab sections */
-		if (shdr_array[i].sh_type == SHT_SYMTAB) {
-			LOG_DBG("symbol table at section %d", i);
-			ms->symtab = shdr_array[i];
-		} else if (shdr_array[i].sh_type == SHT_STRTAB) {
+		switch (shdr.sh_type) {
+		case SHT_SYMTAB:
+			LOG_DBG("symtab at %d", i);
+			ms->sects[MOD_SECT_SYMTAB] = shdr;
+			break;
+		case SHT_STRTAB:
 			if (ehdr.e_shstrndx == i) {
 				LOG_DBG("shstrtab at %d", i);
-				ms->shstrtab = shdr_array[i];
+				ms->sects[MOD_SECT_SHSTRTAB] = shdr;
 			} else {
 				LOG_DBG("strtab at %d", i);
-				ms->strtab = shdr_array[i];
+				ms->sects[MOD_SECT_STRTAB] = shdr;
+				break;
 			}
-		}
-		if ((shdr_array[i].sh_flags & SHF_ALLOC)
-				&& (shdr_array[i].sh_size > 0)) {
-			if (!flag) {
-				LOG_DBG("updating virt start addr, virt addr sz %d, section addr sz %d",
-					sizeof(m->virt_start_addr), sizeof(shdr_array[i].sh_addr));
-				/*
-				m->virt_start_addr = shdr_array[i].sh_addr;
-				*/
-				LOG_DBG("updating module size, adding %d to %d", shdr_array[i].sh_size, m->mem_sz);
-				m->mem_sz += shdr_array[i].sh_size;
-				flag = true;
-			} else {
-				LOG_DBG("updating module size, adding %d to %d", shdr_array[i].sh_size, m->mem_sz);
-				m->mem_sz += shdr_array[i].sh_size;
-			}
+			break;
+		default:
+			break;
 		}
 	}
 
+	pos = ehdr.e_shoff;
 
-	LOG_DBG("module size (total section sizes) %d", m->mem_sz);
-
-	/* allocate memory */
-	m->load_start_addr = (elf_addr)k_heap_alloc(&module_heap,
-			(size_t)m->mem_sz, K_NO_WAIT);
-	if ((void *)m->load_start_addr == NULL) {
-		/* no available memory to load module */
-		LOG_ERR("Not enough memory for module");
-		return -ENOMEM;
-	}
-	memset((void *)m->load_start_addr, 0, sizeof(m->mem_sz));
-
-	/* copy sections into memory */
-	ptr = m->load_start_addr;
-	for (i = 0; i < ehdr.e_shnum - 1; i++) {
-		if ((shdr_array[i].sh_flags & SHF_ALLOC)
-				&& (shdr_array[i].sh_size > 0)) {
-			memcpy((void *)ptr, (void *)&shdr_array[i],
-					(size_t)shdr_array[i].sh_size);
-			shdr_array[i].sh_addr = ptr;
-			ptr += shdr_array[i].sh_size;
-		}
-	}
-
-	/* Section names */
+	/* Copy over useful sections */
 	for (i = 0; i < ehdr.e_shnum; i++) {
-		elf32_word str_idx = shdr_array[i].sh_name;
-		char sec_name[32];
-		module_seek(ms, ms->shstrtab.sh_offset + str_idx);
-		module_read(ms, sec_name, sizeof(sec_name));
-		if (strncmp(sec_name, ".text", sizeof(sec_name)) == 0) {
-			ms->text = shdr_array[i];
-		} else if (strncmp(sec_name, ".data", sizeof(sec_name)) == 0) {
-			ms->data = shdr_array[i];
-		} else if(strncmp(sec_name, ".rodata", sizeof(sec_name)) == 0) {
-			ms->rodata = shdr_array[i];
-		} else if (strncmp(sec_name, ".bss", sizeof(sec_name)) == 0) {
-			ms->bss = shdr_array[i];
-		}
-		LOG_DBG("section %d at addr %x, name %s", i, shdr_array[i].sh_addr, sec_name);
-	}
+		module_seek(ms, pos);
+		module_read(ms, (void *)&shdr, sizeof(elf_shdr_t));
 
+		pos += ehdr.e_shentsize;
+
+		elf32_word str_idx = shdr.sh_name;
+
+		module_seek(ms, ms->sects[MOD_SECT_SHSTRTAB].sh_offset + str_idx);
+		module_read(ms, name, sizeof(name));
+
+		bool valid = true;
+		enum module_mem mem_idx;
+		enum module_section sect_idx;
+
+		if (strncmp(name, ".text", sizeof(name)) == 0) {
+			mem_idx = MOD_MEM_TEXT;
+			sect_idx = MOD_SECT_TEXT;
+		} else if (strncmp(name, ".data", sizeof(name)) == 0) {
+			mem_idx = MOD_MEM_DATA;
+			sect_idx = MOD_SECT_DATA;
+		} else if (strncmp(name, ".rodata", sizeof(name)) == 0) {
+			mem_idx = MOD_MEM_RODATA;
+			sect_idx = MOD_SECT_RODATA;
+		} else if (strncmp(name, ".bss", sizeof(name)) == 0) {
+			mem_idx = MOD_MEM_BSS;
+			sect_idx = MOD_SECT_BSS;
+		} else {
+			LOG_DBG("Not copied section %s", name);
+			valid = false;
+		}
+
+		if (valid) {
+			ms->sects[sect_idx] = shdr;
+			m->mem[mem_idx] =
+				k_heap_alloc(&module_heap, ms->sects[sect_idx].sh_size, K_NO_WAIT);
+			module_seek(ms, ms->sects[sect_idx].sh_offset);
+			module_read(ms, m->mem[mem_idx], ms->sects[sect_idx].sh_size);
+
+			m->mem_size += ms->sects[sect_idx].sh_size;
+
+			LOG_DBG("Copied section %s (idx: %d, size: %d, addr %x)"
+				" to mem %d, module size %d", name, i,
+				ms->sects[sect_idx].sh_size,
+				ms->sects[sect_idx].sh_addr,
+				mem_idx,
+				m->mem_size);
+		}
+	}
 
 	/* Iterate all symbols in symtab and update its st_value,
 	 * for sections, using its loading address,
 	 * for undef functions or variables, find it's address globally.
 	 */
-	sym_cnt = ms->symtab.sh_size / sizeof(elf_sym_t);
-	sym = (elf_sym_t *)ms->symtab.sh_addr;
+	size_t syms_size = ms->sects[MOD_SECT_SYMTAB].sh_size;
+	elf_sym_t *syms = k_heap_alloc(&module_heap, syms_size, K_NO_WAIT);
+
+	sym_cnt = syms_size / sizeof(elf_sym_t);
+
+	module_seek(ms, ms->sects[MOD_SECT_SYMTAB].sh_offset);
+	module_read(ms, syms, syms_size);
+
+	LOG_DBG("symbols %d", sym_cnt);
+
 	for (i = 0; i < sym_cnt; i++) {
-		module_seek(ms, ms->strtab.sh_offset + sym[i].st_name);
-		module_read(ms, str_name, sizeof(str_name));
-		switch (sym[i].st_shndx) {
+		module_seek(ms, ms->sects[MOD_SECT_STRTAB].sh_offset + syms[i].st_name);
+		module_read(ms, name, sizeof(name));
+
+		switch (syms[i].st_shndx) {
 		case SHN_UNDEF:
-			LOG_DBG("Map symbol: %s\n", str_name);
-			/*TODO
-			sym_addr = (elf_addr)module_find_sym(sym_table, str_name);
-			sym[i].st_value = (elf_addr)sym_addr;
-			*/
+			LOG_DBG("Undefined symbol: %s", name);
 			break;
 		case SHN_ABS:
+			LOG_DBG("Absolute symbol: %s", name);
 			break;
 		case SHN_COMMON:
+			LOG_DBG("Common symbol: %s", name);
 			break;
 		default:
-			sym[i].st_value += shdr_array[sym[i].st_shndx].sh_addr;
+			LOG_DBG("Unhandled symbol shndx: %d, name %s", syms[i].st_shndx, name);
 			break;
 		}
 	}
 
-	/* symbols relocation */
+	/* relocations */
+	pos = ehdr.e_shoff;
+
 	elf_sym_t rel_sym;
+
 	for (i = 0; i < ehdr.e_shnum - 1; i++) {
-		/* find out relocation sections */
-		if ((shdr_array[i].sh_type == SHT_REL)
-				|| (shdr_array[i].sh_type == SHT_RELA)) {
-			rel_cnt = shdr_array[i].sh_size / sizeof(elf_rel_t);
+		module_seek(ms, pos);
+		module_read(ms, (void *)&shdr, sizeof(elf_shdr_t));
+
+		pos += ehdr.e_shentsize;
+
+		/* find relocation sections */
+		if ((shdr.sh_type == SHT_REL)
+				|| (shdr.sh_type == SHT_RELA)) {
+			rel_cnt = shdr.sh_size / sizeof(elf_rel_t);
 
 			for (j = 0; j < rel_cnt; j++) {
 				/* get each relocation entry */
-				module_seek(ms, shdr_array[i].sh_offset
+				module_seek(ms, shdr.sh_offset
 						+ j * sizeof(elf_rel_t));
 				module_read(ms, (void *)&rel, sizeof(elf_rel_t));
 
 				/* get corresponding symbol */
-				module_seek(ms, ms->symtab.sh_offset
+				module_seek(ms, ms->sects[MOD_SECT_SYMTAB].sh_offset
 						+ ELF_R_SYM(rel.r_info)
 						* sizeof(elf_sym_t));
 				module_read(ms, &rel_sym, sizeof(elf_sym_t));
 
 				/* relocation */
-				arch_elf_relocate_rel(ms, m, &rel,
-					&shdr_array[i],
+				arch_elf_relocate(ms, m, &rel,
+					&shdr,
 					&rel_sym);
 			}
 		}
@@ -277,190 +280,6 @@ static int module_load_rel(struct module_stream *ms, struct module *m)
 	return 0;
 }
 
-/* load a shared object file */
-static int module_load_dyn(struct module_stream *ms, struct module *m)
-{
-	elf_ehdr_t ehdr;
-	elf_phdr_t phdr;
-	elf_shdr_t shdr, dynsym_shdr, dynstr_shdr;
-	elf_word i, j, rel_cnt, dynsym_cnt, count, len;
-	elf_addr end_addr, sym_addr;
-	elf_rel_t rel;
-	elf_sym_t sym;
-	bool flag;
-	char str_name[32];
-
-	module_seek(ms, 0);
-	module_read(ms, (void *)&ehdr, sizeof(ehdr));
-
-	/* iterate all program segments to get total necessary memory size */
-	flag = false;
-	end_addr = 0;
-	for (i = 0; i < ehdr.e_phnum; i++) {
-		module_seek(ms, ehdr.e_phoff + i * ehdr.e_phentsize);
-		module_read(ms, (void *)&phdr, sizeof(phdr));
-		if (phdr.p_type == PT_LOAD) {
-			if (!flag) {
-				m->virt_start_addr = phdr.p_vaddr;
-				end_addr = phdr.p_vaddr + phdr.p_memsz;
-				flag = true;
-			} else {
-				end_addr = phdr.p_vaddr + phdr.p_memsz;
-			}
-		}
-	}
-	LOG_DBG("updating module size, subtracting end_addr %ul from virt start addr %ul", end_addr, m->virt_start_addr);
-	m->mem_sz = end_addr - m->virt_start_addr;
-	LOG_DBG("module size %d", m->mem_sz);
-
-	/* allocate memory */
-	m->load_start_addr = (elf_addr)k_heap_alloc(&module_heap,
-			(size_t)m->mem_sz, K_NO_WAIT);
-	if ((void *)m->load_start_addr == NULL) {
-		/* no available memory to load module */
-		LOG_ERR("Not enough memory for module");
-		return -ENOMEM;
-	}
-	memset((void *)m->load_start_addr, 0, sizeof(m->mem_sz));
-
-	/* copy segments into memory */
-	for (i = 0; i < ehdr.e_phnum; i++) {
-		module_seek(ms, ehdr.e_phoff + i * ehdr.e_phentsize);
-		module_read(ms, (void *)&phdr, sizeof(phdr));
-		if (phdr.p_type == PT_LOAD) {
-			module_seek(ms, phdr.p_offset);
-			module_read(ms, (void *)(m->load_start_addr
-						+ phdr.p_vaddr
-						- m->virt_start_addr),
-					phdr.p_filesz);
-		}
-	}
-
-	/* doing symbols relocation */
-	for (i = 0; i < ehdr.e_shnum; i++) {
-		module_seek(ms, ehdr.e_shoff + i * ehdr.e_shentsize);
-		module_read(ms, (void *)&shdr, sizeof(shdr));
-		/* get .dynsym and .dynstr section, they will be used
-		 * for symbols relocation and finding exported symbols
-		 * of module.
-		 */
-		if (shdr.sh_type == SHT_DYNSYM) {
-			/* get .dynsym section */
-			dynsym_shdr = shdr;
-			/* get .dynstr section */
-			module_seek(ms, ehdr.e_shoff + dynsym_shdr.sh_link
-					* ehdr.e_shentsize);
-			module_read(ms, (void *)&dynstr_shdr,
-					sizeof(dynstr_shdr));
-		}
-		/* find out relocation sections */
-		else if ((shdr.sh_type == SHT_REL)
-				|| (shdr.sh_type == SHT_RELA)) {
-			rel_cnt = shdr.sh_size / sizeof(elf_rel_t);
-			for (j = 0; j < rel_cnt; j++) {
-				/* get each relocation entry */
-				module_seek(ms, shdr.sh_offset
-						+ j * sizeof(elf_rel_t));
-				module_read(ms, (void *)&rel, sizeof(elf_rel_t));
-
-				/* get corresponding symbol */
-				module_seek(ms, dynsym_shdr.sh_offset
-						+ ELF_R_SYM(rel.r_info)
-						* sizeof(elf_sym_t));
-				module_read(ms, (void *)&sym, sizeof(sym));
-
-				/* get corresponding symbol str name */
-				module_seek(ms, dynstr_shdr.sh_offset
-						+ sym.st_name);
-				module_read(ms, str_name, sizeof(str_name));
-
-				/* find out symbol's real address */
-				if (sym.st_shndx == SHN_UNDEF) {
-					/* this symbol needs to be found
-					 * globally.
-					 */
-					LOG_DBG("Looking up symbol %s\n", str_name);
-					/* TODO map symbols with a provided set of tables */
-					/*
-					sym_addr = (elf_addr)module_find_sym(
-							KERNEL_MODULE,
-							str_name);
-					*/
-				} else {
-					/* this symbol could be found locally */
-					sym_addr = m->load_start_addr
-						+ sym.st_value
-						- m->virt_start_addr;
-				}
-
-				/* doing relocation */
-				/* TODO  */
-				/*
-				arch_elf_relocate_dyn(module, &rel,
-						sym_addr);
-				*/
-			}
-		}
-	}
-
-	/* get all exported symbols of module.
-	 * iterate all symbols in .dynsym section and find out those symbols
-	 * with global, function attributes.
-	 */
-	/* get total count of exported symbols */
-	count = 0;
-	dynsym_cnt = dynsym_shdr.sh_size / sizeof(elf_sym_t);
-	for (j = 0; j < dynsym_cnt; j++) {
-		module_seek(ms, dynsym_shdr.sh_offset + j * sizeof(elf_sym_t));
-		module_read(ms, (void *)&sym, sizeof(sym));
-		if ((ELF_ST_BIND(sym.st_info) == STB_GLOBAL)
-				&& (ELF_ST_TYPE(sym.st_info) == STT_FUNC)
-				&& (sym.st_shndx != SHN_UNDEF)) {
-			count++;
-		}
-	}
-	m->sym_tab.syms = k_heap_alloc(&module_heap, count * sizeof(struct module_symbol), K_NO_WAIT);
-	if (m->sym_tab.syms == NULL) {
-		LOG_ERR("Not enough memory for module symbol table");
-		/* TODO CLEANUP! */
-		return -ENOMEM;
-	}
-
-	m->sym_tab.sym_cnt = count;
-
-	/* get each exported symbols's address and string name */
-	for (j = 0, count = 0; j < dynsym_cnt; j++) {
-		module_seek(ms, dynsym_shdr.sh_offset
-				+ j * sizeof(elf_sym_t));
-		module_read(ms, (void *)&sym, sizeof(sym));
-		if ((ELF_ST_BIND(sym.st_info) == STB_GLOBAL)
-				&& (ELF_ST_TYPE(sym.st_info) == STT_FUNC)
-				&& (sym.st_shndx != SHN_UNDEF)) {
-
-			/* get symbol's address */
-			m->sym_tab.syms[count].addr = sym.st_value
-				- m->virt_start_addr
-				+ m->load_start_addr;
-
-			/* get symbol's string name */
-			module_seek(ms, dynstr_shdr.sh_offset
-					+ sym.st_name);
-			module_read(ms, str_name, sizeof(str_name));
-			len = strlen(str_name) + 1;
-			m->sym_tab.syms[count].name = k_heap_alloc(&module_heap, len, K_NO_WAIT);
-			if (m->sym_tab.syms[count].name == NULL) {
-				LOG_ERR("Not enough memory for symbol name");
-				/* TODO cleanup */
-				return -ENOMEM;
-			}
-			memcpy((void *)m->sym_tab.syms[count].name,
-					(void *)str_name, len);
-			count++;
-		}
-	}
-
-	return 0;
-}
 
 int module_load(struct module_stream *ms, const char name[16], struct module **m)
 {
@@ -484,14 +303,6 @@ int module_load(struct module_stream *ms, const char name[16], struct module **m
 			ret = -ENOMEM;
 		}
 		ret = module_load_rel(ms, *m);
-	} else if (ehdr.e_type == ET_DYN) {
-		LOG_DBG("Loading dynamic elf");
-		*m = k_heap_alloc(&module_heap, sizeof(struct module), K_NO_WAIT);
-		if (m == NULL) {
-			LOG_ERR("Not enough memory for module metadata");
-			ret = -ENOMEM;
-		}
-		ret = module_load_dyn(ms, *m);
 	} else {
 		LOG_ERR("Unsupported elf file type %x", ehdr.e_type);
 		/* unsupported ELF file type */
@@ -518,6 +329,13 @@ void module_unload(struct module *m)
 	sys_slist_find_and_remove(&_module_list, &m->_mod_list);
 
 	k_heap_free(&module_heap, (void *)m->sym_tab.syms);
-	k_heap_free(&module_heap, (void *)m->load_start_addr);
+
+	for (int i = 0; i < MOD_MEM_COUNT; i++) {
+		if (m->mem[i] != NULL) {
+			k_heap_free(&module_heap, m->mem[i]);
+			m->mem[i] = NULL;
+		}
+	}
+
 	k_heap_free(&module_heap, (void *)m);
 }

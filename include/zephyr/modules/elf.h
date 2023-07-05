@@ -201,11 +201,12 @@ struct elf64_sym {
 #define SHN_UNDEF 0
 #define SHN_ABS 0xfff1
 #define SHN_COMMON 0xfff2
+
 #define STT_SECTION 0x3
+#define STT_FUNC 0x2
 
 #define STB_GLOBAL 0x1
 
-#define STT_FUNC 0x2
 
 #define ELF32_ST_BIND(i) ((i) >> 4)
 #define ELF32_ST_TYPE(i) ((i) & 0xf)

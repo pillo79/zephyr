@@ -29,15 +29,57 @@ struct module_symtable {
 	struct module_symbol *syms;
 };
 
+
+/**
+ * @brief Enum of module memory regions for lookup tables
+ */
+enum module_mem {
+	MOD_MEM_TEXT,
+	MOD_MEM_DATA,
+	MOD_MEM_RODATA,
+	MOD_MEM_BSS,
+
+	MOD_MEM_COUNT,
+};
+
+/**
+ * @brief Enum of sections for lookup tables
+ */
+enum module_section {
+	MOD_SECT_TEXT,
+	MOD_SECT_DATA,
+	MOD_SECT_RODATA,
+	MOD_SECT_BSS,
+
+	MOD_SECT_REL_TEXT,
+	MOD_SECT_REL_DATA,
+	MOD_SECT_REL_RODATA,
+	MOD_SECT_REL_BSS,
+
+	MOD_SECT_SYMTAB,
+	MOD_SECT_STRTAB,
+	MOD_SECT_SHSTRTAB,
+
+	/* Should always be last */
+	MOD_SECT_COUNT,
+};
+
 /**
  * @brief Loadable code module
  */
 struct module {
 	sys_snode_t _mod_list;
+
+	/** Name of the module */
 	char name[16];
-	elf_addr virt_start_addr;
-	elf_addr load_start_addr;
-	elf_word mem_sz;
+
+	/** Lookup table of module memory regions */
+	void *mem[MOD_MEM_COUNT];
+
+	/** Total size of the module memory usage */
+	size_t mem_size;
+
+	/** Exported symbols from the module, may be used in other modules */
 	struct module_symtable sym_tab;
 };
 
@@ -49,14 +91,9 @@ struct module {
 struct module_stream {
 	int (*read)(struct module_stream *s, void *buf, size_t len);
 	int (*seek)(struct module_stream *s, size_t pos);
+
 	elf_ehdr_t hdr;
-	elf_shdr_t strtab;
-	elf_shdr_t shstrtab;
-	elf_shdr_t symtab;
-	elf_shdr_t text;
-	elf_shdr_t rodata;
-	elf_shdr_t bss;
-	elf_shdr_t data;
+	elf_shdr_t sects[MOD_SECT_COUNT];
 };
 
 /**
@@ -106,11 +143,6 @@ struct module *module_from_name(const char *name);
 int module_load(struct module_stream *modstr, const char name[16], struct module **module);
 
 /**
- * @brief Dynamically link symbols for a module
- */
-int module_link(struct module *module, struct module_symtable *syms);
-
-/**
  * @brief Unload a module
  */
 void module_unload(struct module *module);
@@ -127,17 +159,7 @@ void *module_find_sym(struct module_symtable *sym_table, const char *sym_name);
  * instructions are architecture specific and each architecture supporting modules
  * must implement this.
  * */
-void arch_elf_relocate_rel(struct module_stream *ms, struct module *m, elf_rel_t *rel,
-			   elf_shdr_t *shdr, elf_sym_t *sym);
-
-/**
- * @brief Architecture specific function for relocating
- *
- * Elf files contain a series of relocations described in a section. These relocation
- * instructions are architecture specific and each architecture supporting modules
- * must implement this.
- */
-void arch_elf_relocate_dyn(struct module_stream *ms, struct module *m, elf_rel_t *rel,
+void arch_elf_relocate(struct module_stream *ms, struct module *m, elf_rel_t *rel,
 			   elf_shdr_t *shdr, elf_sym_t *sym);
 
 

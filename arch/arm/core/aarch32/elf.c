@@ -1,10 +1,9 @@
-#include "zephyr/modules/elf.h"
 #include <zephyr/kernel.h>
 #include <zephyr/modules/module.h>
+#include <zephyr/modules/elf.h>
 
 #define R_ARM_ABS32 2
 #define R_ARM_CALL 28
-
 
 /**
  * @brief Architecture specific function for relocating partially linked (static) elf
@@ -16,7 +15,7 @@
  * The relocation codes for arm are well documented
  * https://github.com/ARM-software/abi-aa/blob/main/aaelf32/aaelf32.rst#relocation
  * */
-void arch_elf_relocate_rel(struct module_stream *ms, struct module *m, elf_rel_t *rel,
+void arch_elf_relocate(struct module_stream *ms, struct module *m, elf_rel_t *rel,
 			   elf_shdr_t *shdr, elf_sym_t *sym)
 {
 	char sym_name[32], sec_name[32];
@@ -43,19 +42,26 @@ void arch_elf_relocate_rel(struct module_stream *ms, struct module *m, elf_rel_t
 
 				printk("sym shdr offset %d, sh_name %d\n", pos, sym_shdr.sh_name);
 
-				(void)module_seek(ms, ms->shstrtab.sh_offset + sym_shdr.sh_name);
+				size_t offs = ms->sects[MOD_SECT_SHSTRTAB].sh_offset +
+					sym_shdr.sh_name;
+
+				(void)module_seek(ms, offs);
 				(void)module_read(ms, sym_name, 32);
 
 			} else {
-				(void)module_seek(ms, ms->strtab.sh_offset + sym->st_name);
+				size_t offs = ms->sects[MOD_SECT_STRTAB].sh_offset
+					+ sym->st_name;
+
+				(void)module_seek(ms, offs);
 				(void)module_read(ms, sym_name, 32);
 			}
 
-			(void)module_seek(ms, ms->strtab.sh_offset + shdr->sh_name);
+			(void)module_seek(ms, ms->sects[MOD_SECT_STRTAB].sh_offset + shdr->sh_name);
 			(void)module_read(ms, sec_name, 32);
 
 
-			printk("absolute 32bit relocation at offset %d, symbol[%d] (st_name %d, sym type %d, shndx %d) %s in section[%d] %s\n",
+			printk("absolute 32bit relocation at offset %d, symbol[%d]"
+			       " (st_name %d, sym type %d, shndx %d) %s in section[%d] %s\n",
 			       rel->r_offset,
 			       reloc_sym,
 			       sym->st_name,
@@ -67,10 +73,14 @@ void arch_elf_relocate_rel(struct module_stream *ms, struct module *m, elf_rel_t
 			break;
 		case R_ARM_CALL:
 			/* TODO lookup symbol address, e.g. puts function */
-			(void)module_seek(ms, ms->strtab.sh_offset + sym->st_name);
+			(void)module_seek(ms,
+					  ms->sects[MOD_SECT_STRTAB].sh_offset
+					  + sym->st_name);
 			(void)module_read(ms, sym_name, 32);
 
-			(void)module_seek(ms, ms->shstrtab.sh_offset + shdr->sh_name);
+			(void)module_seek(ms,
+					  ms->sects[MOD_SECT_SHSTRTAB].sh_offset
+					  + shdr->sh_name);
 			(void)module_read(ms, sec_name, 32);
 
 			printk("call relocation at offset %d, symbol[%d] %s in section[%d] %s\n",
@@ -85,16 +95,4 @@ void arch_elf_relocate_rel(struct module_stream *ms, struct module *m, elf_rel_t
 			break;
 
 	}
-}
-
-/**
- * @brief Architecture specific function for relocating dynamically linked elf
- *
- * Elf files contain a series of relocations described in a section. These relocation
- * instructions are architecture specific and each architecture supporting modules
- * must implement this.
- */
-void arch_elf_relocate_dyn(struct module_stream *ms, struct module *m, elf_rel_t *rel,
-			   elf_shdr_t *shdr, elf_sym_t *sym)
-{
 }

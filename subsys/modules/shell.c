@@ -32,7 +32,6 @@ LOG_MODULE_REGISTER(modules_shell, CONFIG_MODULES_LOG_LEVEL);
 
 static int cmd_module_list_symbols(const struct shell *sh, size_t argc, char *argv[])
 {
-
 	struct module *m = module_from_name(argv[1]);
 
 	if (m == NULL) {
@@ -82,7 +81,7 @@ static int cmd_module_list(const struct shell *sh, size_t argc, char *argv[])
 	sys_snode_t *node;
 	SYS_SLIST_FOR_EACH_NODE(module_list(), node) {
 		struct module *m = CONTAINER_OF(node, struct module, _mod_list);
-		shell_print(sh, "| %16s | %12d |\n", m->name, m->mem_sz);
+		shell_print(sh, "| %16s | %12d |\n", m->name, m->mem_size);
 	}
 	return 0;
 }
@@ -125,6 +124,16 @@ static int cmd_module_load_hex(const struct shell *sh, size_t argc, char *argv[]
 
 static int cmd_module_unload(const struct shell *sh, size_t argc, char *argv[])
 {
+	struct module *m = module_from_name(argv[1]);
+
+	if (m == NULL) {
+		shell_print(sh, "No such module %s", argv[1]);
+		return -EINVAL;
+	}
+
+	module_unload(m);
+	shell_print(sh, "Unloaded module %s\n", argv[1]);
+
 	return 0;
 }
 
@@ -133,7 +142,7 @@ SHELL_STATIC_SUBCMD_SET_CREATE(sub_module,
 	SHELL_CMD(list, NULL, MODULE_LIST_HELP, cmd_module_list),
 	SHELL_CMD_ARG(load_hex, NULL, MODULE_LOAD_HEX_HELP, cmd_module_load_hex,
 		3, 0),
-	SHELL_CMD_ARG(unload, NULL, MODULE_UNLOAD_HELP, cmd_module_unload, 1, 0),
+	SHELL_CMD_ARG(unload, &msub_module_name, MODULE_UNLOAD_HELP, cmd_module_unload, 2, 0),
 	SHELL_CMD_ARG(list_symbols, &msub_module_name, MODULE_LIST_SYMBOLS_HELP,
 		      cmd_module_list_symbols, 2, 0),
 	SHELL_SUBCMD_SET_END
