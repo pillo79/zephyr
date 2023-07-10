@@ -12,11 +12,21 @@
 #include <sys/types.h>
 
 /**
+ * @brief A module symbol type tag
+ */
+enum module_symbol_type {
+	MODULE_SYMBOL_FUNC,
+	MODULE_SYMBOL_VAR,
+	MODULE_SYMBOL_UNDEF_FUNC,
+};
+
+/**
  * @brief A symbol (named memory address)
  */
 struct module_symbol {
-	elf_addr addr;
-	const char *name;
+	enum module_symbol_type tt;
+	char name[32];
+	void *addr;
 };
 
 /**
@@ -94,6 +104,8 @@ struct module_stream {
 
 	elf_ehdr_t hdr;
 	elf_shdr_t sects[MOD_SECT_COUNT];
+	uint32_t *sect_map;
+	uint32_t sect_cnt;
 };
 
 /**

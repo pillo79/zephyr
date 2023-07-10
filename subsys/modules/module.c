@@ -118,6 +118,9 @@ static int module_load_rel(struct module_stream *ms, struct module *m)
 	elf_shdr_t shdr;
 	size_t pos = ehdr.e_shoff;
 
+	ms->sect_map = k_heap_alloc(&module_heap, ehdr.e_shnum*sizeof(uint32_t), K_NO_WAIT);
+	ms->sect_cnt = ehdr.e_shnum;
+
 	/* Find string tables */
 	for (i = 0; i < ehdr.e_shnum; i++) {
 		module_seek(ms, pos);
@@ -138,14 +141,17 @@ static int module_load_rel(struct module_stream *ms, struct module *m)
 		case SHT_SYMTAB:
 			LOG_DBG("symtab at %d", i);
 			ms->sects[MOD_SECT_SYMTAB] = shdr;
+			ms->sect_map[i] = MOD_SECT_SYMTAB;
 			break;
 		case SHT_STRTAB:
 			if (ehdr.e_shstrndx == i) {
 				LOG_DBG("shstrtab at %d", i);
 				ms->sects[MOD_SECT_SHSTRTAB] = shdr;
+				ms->sect_map[i] = MOD_SECT_SHSTRTAB;
 			} else {
 				LOG_DBG("strtab at %d", i);
 				ms->sects[MOD_SECT_STRTAB] = shdr;
+				ms->sect_map[i] = MOD_SECT_STRTAB;
 				break;
 			}
 			break;
@@ -191,6 +197,8 @@ static int module_load_rel(struct module_stream *ms, struct module *m)
 
 		if (valid) {
 			ms->sects[sect_idx] = shdr;
+			ms->sect_map[i] = sect_idx;
+
 			m->mem[mem_idx] =
 				k_heap_alloc(&module_heap, ms->sects[sect_idx].sh_size, K_NO_WAIT);
 			module_seek(ms, ms->sects[sect_idx].sh_offset);
@@ -211,35 +219,40 @@ static int module_load_rel(struct module_stream *ms, struct module *m)
 	 * for sections, using its loading address,
 	 * for undef functions or variables, find it's address globally.
 	 */
+	elf_sym_t sym;
+	size_t ent_size = ms->sects[MOD_SECT_SYMTAB].sh_entsize;
 	size_t syms_size = ms->sects[MOD_SECT_SYMTAB].sh_size;
-	elf_sym_t *syms = k_heap_alloc(&module_heap, syms_size, K_NO_WAIT);
+	size_t func_syms_cnt = 0;
 
+	pos = ms->sects[MOD_SECT_SYMTAB].sh_offset;
 	sym_cnt = syms_size / sizeof(elf_sym_t);
 
-	module_seek(ms, ms->sects[MOD_SECT_SYMTAB].sh_offset);
-	module_read(ms, syms, syms_size);
-
-	LOG_DBG("symbols %d", sym_cnt);
+	LOG_DBG("symbol count %d", sym_cnt);
 
 	for (i = 0; i < sym_cnt; i++) {
-		module_seek(ms, ms->sects[MOD_SECT_STRTAB].sh_offset + syms[i].st_name);
+		module_seek(ms, pos);
+		module_read(ms, &sym, ent_size);
+		pos += ent_size;
+
+		uint32_t stt = ELF_ST_TYPE(sym.st_info);
+		uint32_t stb = ELF_ST_BIND(sym.st_info);
+		uint32_t sect = sym.st_shndx;
+
+		module_seek(ms, ms->sects[MOD_SECT_STRTAB].sh_offset + sym.st_name);
 		module_read(ms, name, sizeof(name));
 
-		switch (syms[i].st_shndx) {
-		case SHN_UNDEF:
-			LOG_DBG("Undefined symbol: %s", name);
-			break;
-		case SHN_ABS:
-			LOG_DBG("Absolute symbol: %s", name);
-			break;
-		case SHN_COMMON:
-			LOG_DBG("Common symbol: %s", name);
-			break;
-		default:
-			LOG_DBG("Unhandled symbol shndx: %d, name %s", syms[i].st_shndx, name);
-			break;
+		if (stt == STT_FUNC && stb == STB_GLOBAL) {
+			LOG_DBG("function symbol %d, name %s, type tag %d, bind %d, sect %d",
+				i, name, stt, stb, sect);
+			func_syms_cnt++;
+		} else {
+			LOG_DBG("unhandled symbol %d, name %s, type tag %d, bind %d, sect %d",
+				i, name, stt, stb, sect);
 		}
 	}
+
+	/* Copy over global function symbols to symtab */
+	/* TODO */
 
 	/* relocations */
 	pos = ehdr.e_shoff;

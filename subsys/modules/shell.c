@@ -5,8 +5,7 @@
  *
  */
 
-#include "zephyr/logging/log.h"
-#include "zephyr/sys/slist.h"
+#include <zephyr/sys/slist.h>
 #include <zephyr/kernel.h>
 #include <zephyr/shell/shell.h>
 #include <zephyr/modules/elf.h>
@@ -42,7 +41,8 @@ static int cmd_module_list_symbols(const struct shell *sh, size_t argc, char *ar
 	shell_print(sh, "Module: %s symbols", m->name);
 	shell_print(sh, "| Symbol           | Address    |\n");
 	for (elf_word i = 0; i < m->sym_tab.sym_cnt; i++) {
-		shell_print(sh, "| %16s | 0x%8x |\n", m->sym_tab.syms[i].name, m->sym_tab.syms[i].addr);
+		shell_print(sh, "| %16s | %p |\n", m->sym_tab.syms[i].name,
+			    m->sym_tab.syms[i].addr);
 	}
 
 	return 0;

@@ -198,16 +198,41 @@ struct elf64_sym {
 	elf64_half st_shndx;
 };
 
+/*
+ * Symbol index special value representations
+ */
 #define SHN_UNDEF 0
 #define SHN_ABS 0xfff1
 #define SHN_COMMON 0xfff2
 
-#define STT_SECTION 0x3
-#define STT_FUNC 0x2
+/*
+ * Symbol type tag defines
+ */
+#define STT_NOTYPE 0
+#define STT_OBJECT 1
+#define STT_FUNC 2
+#define STT_SECTION 3
+#define STT_FILE 4
+#define STT_COMMON 5
+#define STT_LOOS 10
+#define STT_HIOS 12
+#define STT_LOPROC 13
+#define STT_HIPROC 15
 
-#define STB_GLOBAL 0x1
+/*
+ * Symbol binding defines
+ */
+#define STB_LOCAL 0
+#define STB_GLOBAL 1
+#define STB_WEAK 2
+#define STB_LOOS 10
+#define STB_HIOS 12
+#define STB_LOPROC 13
+#define STB_HIPROC 15
 
-
+/*
+ * Get parts of a symbols st_info representing binding and type
+ */
 #define ELF32_ST_BIND(i) ((i) >> 4)
 #define ELF32_ST_TYPE(i) ((i) & 0xf)
 
