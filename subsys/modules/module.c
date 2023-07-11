@@ -252,7 +252,33 @@ static int module_load_rel(struct module_stream *ms, struct module *m)
 	}
 
 	/* Copy over global function symbols to symtab */
-	/* TODO */
+
+	m->sym_tab.syms = k_heap_alloc(&module_heap, func_syms_cnt*sizeof(struct module_symbol),
+				       K_NO_WAIT);
+	m->sym_tab.sym_cnt = func_syms_cnt;
+	pos = ms->sects[MOD_SECT_SYMTAB].sh_offset;
+	j = 0;
+	for (i = 0; i < sym_cnt; i++) {
+		module_seek(ms, pos);
+		module_read(ms, &sym, ent_size);
+		pos += ent_size;
+
+		uint32_t stt = ELF_ST_TYPE(sym.st_info);
+		uint32_t stb = ELF_ST_BIND(sym.st_info);
+		uint32_t sect = sym.st_shndx;
+
+		module_seek(ms, ms->sects[MOD_SECT_STRTAB].sh_offset + sym.st_name);
+		module_read(ms, name, sizeof(name));
+
+		if (stt == STT_FUNC && stb == STB_GLOBAL && sect != SHN_UNDEF) {
+			strncpy(m->sym_tab.syms[j].name, name, sizeof(m->sym_tab.syms[j].name));
+			m->sym_tab.syms[j].tt = MODULE_SYMBOL_FUNC;
+			m->sym_tab.syms[j].addr = m->mem[ms->sect_map[sym.st_shndx]] + sym.st_value;
+			LOG_DBG("function symbol %d, name %s, type %d, addr %p",
+				j, name, MODULE_SYMBOL_FUNC, m->sym_tab.syms[j].addr);
+			j++;
+		}
+	}
 
 	/* relocations */
 	pos = ehdr.e_shoff;
@@ -348,6 +374,11 @@ void module_unload(struct module *m)
 			k_heap_free(&module_heap, m->mem[i]);
 			m->mem[i] = NULL;
 		}
+	}
+
+	if (m->sym_tab.syms != NULL) {
+		k_heap_free(&module_heap, m->sym_tab.syms);
+		m->sym_tab.syms = NULL;
 	}
 
 	k_heap_free(&module_heap, (void *)m);
