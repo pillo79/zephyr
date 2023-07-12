@@ -29,6 +29,10 @@ LOG_MODULE_REGISTER(modules_shell, CONFIG_MODULES_LOG_LEVEL);
 	"List module symbols. Syntax:\n"							\
 	"<module_name>"
 
+#define MODULE_CALL_FN_HELP									\
+	"Call module function with prototype void fn(void). Syntax:\n"				\
+	"<module_name> <function_name>"
+
 static int cmd_module_list_symbols(const struct shell *sh, size_t argc, char *argv[])
 {
 	struct module *m = module_from_name(argv[1]);
@@ -137,6 +141,21 @@ static int cmd_module_unload(const struct shell *sh, size_t argc, char *argv[])
 	return 0;
 }
 
+static int cmd_module_call_fn(const struct shell *sh, size_t argc, char *argv[])
+{
+	struct module *m = module_from_name(argv[1]);
+
+	if (m == NULL) {
+		shell_print(sh, "No such module %s", argv[1]);
+		return -EINVAL;
+	}
+
+	module_call_fn(m, argv[2]);
+
+	return 0;
+}
+
+
 /* clang-format off */
 SHELL_STATIC_SUBCMD_SET_CREATE(sub_module,
 	SHELL_CMD(list, NULL, MODULE_LIST_HELP, cmd_module_list),
@@ -145,6 +164,9 @@ SHELL_STATIC_SUBCMD_SET_CREATE(sub_module,
 	SHELL_CMD_ARG(unload, &msub_module_name, MODULE_UNLOAD_HELP, cmd_module_unload, 2, 0),
 	SHELL_CMD_ARG(list_symbols, &msub_module_name, MODULE_LIST_SYMBOLS_HELP,
 		      cmd_module_list_symbols, 2, 0),
+	SHELL_CMD_ARG(call_fn, &msub_module_name, MODULE_CALL_FN_HELP,
+		      cmd_module_call_fn, 3, 0),
+
 	SHELL_SUBCMD_SET_END
 	);
 /* clang-format on */

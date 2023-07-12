@@ -135,34 +135,54 @@ struct module *module_from_name(const char *name);
 /**
  * @brief Load a module
  *
- * Loads an ELF into memory and provides a structure to work with it.
+ * Loads relevant ELF data into memory and provides a structure to work with it.
  *
- * What types of ELF streams are loadable depends on Kconfig flags and architecture
- * support of those files. On some architectures it may be possible to load relocatable or
- * exec code which subsequently has op codes transformed to mimic the behavior of a dynamicaly
- * linked elf with position independent code.
+ * Only relocatable ELF files are currently supported (partially linked).
  *
- * Internally a module specific heap is used to allocate dynamic structures which are freed when
- * the module is unloaded.
+ * Internally a module specific heap is used to allocate dynamic structures which
+ * are freed when the module is unloaded.
  *
  * @param[in] modstr A byte stream like object that provides a source for loadable code
  * @param[in] name A string identifier for the module
  * @param[out] module A pointer to a statically allocated module struct
  *
  * @retval 0 Success
- * @retval -errno Error
+ * @retval -ENOMEM Not enough memory
+ * @retval -EINVAL Invalid ELF stream
  */
 int module_load(struct module_stream *modstr, const char name[16], struct module **module);
 
 /**
  * @brief Unload a module
+ *
+ * @param module Module to unload
  */
 void module_unload(struct module *module);
 
 /**
  * @brief Find the address for an arbitrary symbol name.
+ *
+ * @param sym_table Symbol table to lookup symbol in
+ * @param sym_name Symbol name to find
+ *
+ * @retval NULL if no symbol found
+ * @retval addr Address of symbol in memory if found
  */
 void *module_find_sym(struct module_symtable *sym_table, const char *sym_name);
+
+/**
+ * @brief Call a function by name
+ *
+ * Expects a symbol representing a void fn(void) style function exists
+ * and may be called.
+ *
+ * @param module Module to call function in
+ * @param sym_name Function name (exported symbol) in the module
+ *
+ * @retval 0 success
+ * @retval -EINVAL invalid symbol name
+ */
+int module_call_fn(struct module *module, const char *sym_name);
 
 /**
  * @brief Architecture specific function for relocating
@@ -170,7 +190,13 @@ void *module_find_sym(struct module_symtable *sym_table, const char *sym_name);
  * Elf files contain a series of relocations described in a section. These relocation
  * instructions are architecture specific and each architecture supporting modules
  * must implement this.
- * */
+ *
+ * @param ms Seekable stream like object over an ELF
+ * @param m Module needing relocation
+ * @param rel Relocation data provided by elf
+ * @param shdr Section header for the relocation data
+ * @param sym Symbol for the relocation if provided
+ */
 void arch_elf_relocate(struct module_stream *ms, struct module *m, elf_rel_t *rel,
 			   elf_shdr_t *shdr, elf_sym_t *sym);
 

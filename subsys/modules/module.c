@@ -383,3 +383,16 @@ void module_unload(struct module *m)
 
 	k_heap_free(&module_heap, (void *)m);
 }
+
+int module_call_fn(struct module *m, const char *sym_name)
+{
+	void (*fn)(void) = module_find_sym(&m->sym_tab, sym_name);
+
+	if (fn == NULL) {
+		return -EINVAL;
+	}
+
+	fn();
+
+	return 0;
+}
