@@ -185,20 +185,19 @@ void *module_find_sym(struct module_symtable *sym_table, const char *sym_name);
 int module_call_fn(struct module *module, const char *sym_name);
 
 /**
- * @brief Architecture specific function for relocating
+ * @brief Architecture specific function for updating op codes given a relocation
  *
  * Elf files contain a series of relocations described in a section. These relocation
  * instructions are architecture specific and each architecture supporting modules
- * must implement this.
+ * must implement this. They are instructions on how to rewrite opcodes given
+ * the actual placement of some symbolic data such as a section, function,
+ * or object.
  *
- * @param ms Seekable stream like object over an ELF
- * @param m Module needing relocation
  * @param rel Relocation data provided by elf
- * @param shdr Section header for the relocation data
- * @param sym Symbol for the relocation if provided
+ * @param opaddr Address of operation to rewrite with relocation
+ * @param opval Value of looked up symbol to relocate
  */
-void arch_elf_relocate(struct module_stream *ms, struct module *m, elf_rel_t *rel,
-			   elf_shdr_t *shdr, elf_sym_t *sym);
+void arch_elf_relocate(elf_rel_t *rel, uintptr_t opaddr, uintptr_t opval);
 
 
 #endif /* ELFLOADER_H */
