@@ -19,17 +19,26 @@ void arch_elf_relocate(elf_rel_t *rel, uintptr_t opaddr, uintptr_t opval)
 {
 	elf_word reloc_type = ELF32_R_TYPE(rel->r_info);
 
+	uint32_t old_opcode = *(uint32_t *)opaddr;
+
 	switch(reloc_type) {
 		case R_ARM_ABS32:
 			/* Update the absolute address of a load/store instruction */
 			*((uint32_t*)opaddr) = (uint32_t)opval;
 			break;
 		case R_ARM_CALL:
-			/* Update the address of the call (BL/BLX) instruction */
-			*((uint32_t*)opaddr) = ((uint32_t)opval & 0x03FFFFFE);
+			/* Update the address of the call (BL/BLX) instruction
+			 * This is instruction is a branch link (call) to an
+			 * address relative to the program counter and needs to be
+			 * written relative to th */
+			*(uint32_t*)opaddr = (*(uint32_t*)opaddr & 0xFF000000)
+				| FIELD_GET(GENMASK(25, 2), opaddr - opval);
 			break;
 		default:
 			printk("Unsupported relocation type %d\n", reloc_type);
 			break;
 	}
+
+	printk("relocate wrote addr %p from %x to %x\n", (uint32_t *)opaddr,
+	       old_opcode, *(uint32_t*)opaddr);
 }

@@ -387,6 +387,7 @@ static int module_load_rel(struct module_stream *ms, struct module *m)
 		}
 	}
 
+	LOG_DBG("loaded module, .text at %p, .rodata at %p", m->mem[MOD_MEM_TEXT], m->mem[MOD_MEM_RODATA]);
 	return 0;
 }
 
