@@ -11,6 +11,7 @@
 #include <zephyr/modules/module.h>
 #include <zephyr/modules/buf_stream.h>
 #include <zephyr/kernel.h>
+#include <zephyr/init.h>
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(modules, CONFIG_MODULES_LOG_LEVEL);
@@ -30,8 +31,15 @@ static const struct module_symtable SYMTAB = {
 	.syms = (struct module_symbol *)&SYMS[0],
 };
 
-/* TODO different allocator pools for metadata, code sections, and data sections */
-K_HEAP_DEFINE(module_heap, CONFIG_MODULES_HEAP_SIZE * 1024);
+K_THREAD_STACK_DEFINE(module_stack, CONFIG_MODULES_STACK_SIZE * 1024);
+K_THREAD_STACK_DEFINE(module_heap_buf, CONFIG_MODULES_HEAP_SIZE * 1024);
+
+#ifdef CONFIG_USERSPACE
+K_MEM_PARTITION_DEFINE(module_heap_partition, module_heap_buf, sizeof(module_heap_buf), K_MEM_PARTITION_P_RWX_U_RWX);
+#endif
+
+struct k_heap module_heap;
+struct k_thread module_thread;
 
 static const char ELF_MAGIC[] = {0x7f, 'E', 'L', 'F'};
 
@@ -467,7 +475,31 @@ int module_call_fn(struct module *m, const char *sym_name)
 		return -EINVAL;
 	}
 
-	fn();
+	LOG_DBG("calling function %s at %p", sym_name, fn);
+
+	k_tid_t tid = k_thread_create(
+			&module_thread,
+			module_stack,
+			CONFIG_MODULES_STACK_SIZE * 1024,
+			(k_thread_entry_t)fn,
+			0, NULL, NULL,
+			3, K_USER, K_FOREVER
+		);
+	k_thread_name_set(tid, sym_name);
+	k_thread_heap_assign(&module_thread, &module_heap);
+
+	// Start thread and wait for termination
+	k_thread_start(&module_thread);
+	return k_thread_join(&module_thread, K_FOREVER);
+}
+
+static int module_init(void)
+{
+	k_heap_init(&module_heap, module_heap_buf, sizeof(module_heap_buf));
+#ifdef CONFIG_USERSPACE
+	k_mem_domain_add_partition(&k_mem_domain_default, &module_heap_partition);
+#endif
 
 	return 0;
 }
+SYS_INIT(module_init, POST_KERNEL, CONFIG_MODULES_INIT_PRIORITY);

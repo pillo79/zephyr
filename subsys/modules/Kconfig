@@ -3,6 +3,7 @@
 
 menuconfig MODULES
 	bool "Dynamic module loading"
+	depends on !EXECUTE_XOR_WRITE
 	help
 	  Enable dynamic module loading
 
@@ -13,6 +14,18 @@ config MODULES_HEAP_SIZE
 	default 8
 	help
 	  Memory size used to load dynamic modules
+
+config MODULES_STACK_SIZE
+	int "Module execution stack memory size in kilobytes"
+	default 8
+	help
+	  Memory size used to load dynamic modules
+
+config MODULES_INIT_PRIORITY
+	int "Module init priority"
+	default 50
+	help
+	  Modules subsystem init priority
 
 config MODULES_SHELL
 	bool "Modules shell commands"
