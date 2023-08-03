@@ -288,7 +288,7 @@ static int module_load_rel(struct module_stream *ms, struct module *m)
 		if (stt == STT_FUNC && stb == STB_GLOBAL && sect != SHN_UNDEF) {
 			strncpy(m->sym_tab.syms[j].name, name, sizeof(m->sym_tab.syms[j].name));
 			m->sym_tab.syms[j].tt = MODULE_SYMBOL_FUNC;
-			m->sym_tab.syms[j].addr = m->mem[ms->sect_map[sym.st_shndx]] + sym.st_value;
+			m->sym_tab.syms[j].addr = (uint8_t*) m->mem[ms->sect_map[sym.st_shndx]] + sym.st_value;
 			LOG_DBG("function symbol %d, name %s, type %d, addr %p",
 				j, name, MODULE_SYMBOL_FUNC, m->sym_tab.syms[j].addr);
 			j++;
@@ -347,14 +347,14 @@ static int module_load_rel(struct module_stream *ms, struct module *m)
 					i, j, rel.r_info, ELF_R_TYPE(rel.r_info), ELF_R_SYM(rel.r_info),
 					rel.r_offset, name, ELF_ST_TYPE(sym.st_info), ELF_ST_BIND(sym.st_info), sym.st_shndx);
 
-				uintptr_t link_addr, op_loc, op_code = 0;
+				uintptr_t link_addr = 0, op_loc, op_code = 0;
 
 				/* If symbol is undefined, then we need to look it up */
 				if (sym.st_shndx == SHN_UNDEF) {
 
-					link_addr = module_find_sym((struct module_symtable *)(&SYMTAB), name);
+					link_addr = (uintptr_t)module_find_sym((struct module_symtable *)(&SYMTAB), name);
 
-					if (link_addr == NULL) {
+					if (link_addr == 0) {
 						LOG_ERR("Undefined symbol with no entry in symbol table %s, offset %d, link section %d",
 							name, rel.r_offset, shdr.sh_link);
 						/* TODO cleanup and leave */
@@ -365,10 +365,13 @@ static int module_load_rel(struct module_stream *ms, struct module *m)
 						LOG_INF("found symbol %s at 0x%lx, updating op code 0x%lx", name, link_addr, op_code);
 					}
 
-				} else if (ELF_ST_TYPE(sym.st_info) == STT_SECTION) {
+				} else if (sym.st_shndx == SHN_ABS) {
+					/* symbol is absolute */
+					link_addr = 0;
+					LOG_INF("symbol %s is absolute", name);
+				} else {
 					link_addr = (uintptr_t)m->mem[ms->sect_map[sym.st_shndx]];
-
-					LOG_INF("found section symbol %s addr 0x%x", name, link_addr);
+					LOG_INF("symbol %s base addr 0x%lx", name, link_addr);
 				}
 
 				op_loc = loc + rel.r_offset;
