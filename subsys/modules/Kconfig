@@ -9,23 +9,29 @@ menuconfig MODULES
 
 if MODULES
 
-config MODULES_HEAP_SIZE
-	int "Module loading heap memory size in kilobytes"
-	default 8
+config MODULES_CODE_SIZE
+	int "Module code memory size"
+	default 131072
 	help
-	  Memory size used to load dynamic modules
+	  Memory reserved for dynamic module code, in bytes
+
+config MODULES_DATA_SIZE
+	int "Module data memory size"
+	default 131072
+	help
+	  Memory reserved for dynamic module data and relocations, in bytes
 
 config MODULES_STACK_SIZE
-	int "Module execution stack memory size in kilobytes"
-	default 8
+	int "Module execution stack size"
+	default 8192
 	help
-	  Memory size used to load dynamic modules
+	  Memory reserved for module thread stack, in bytes
 
 config MODULES_INIT_PRIORITY
-	int "Module init priority"
+	int "Module subsystem init priority"
 	default 50
 	help
-	  Modules subsystem init priority
+	  Modules subsystem init priority at POST_KERNEL level
 
 config MODULES_SHELL
 	bool "Modules shell commands"

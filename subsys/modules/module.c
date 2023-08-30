@@ -31,14 +31,20 @@ static const struct module_symtable SYMTAB = {
 	.syms = (struct module_symbol *)&SYMS[0],
 };
 
-K_THREAD_STACK_DEFINE(module_stack, CONFIG_MODULES_STACK_SIZE * 1024);
-K_THREAD_STACK_DEFINE(module_heap_buf, CONFIG_MODULES_HEAP_SIZE * 1024);
+/* Using K_THREAD_STACK_DEFINE to align properly to MPU constraints
+ * on Cortex-M targets */
+K_THREAD_STACK_DEFINE(module_code_buf, CONFIG_MODULES_CODE_SIZE);
+K_THREAD_STACK_DEFINE(module_data_buf, CONFIG_MODULES_DATA_SIZE);
+K_THREAD_STACK_DEFINE(module_stack, CONFIG_MODULES_STACK_SIZE);
 
 #ifdef CONFIG_USERSPACE
-K_MEM_PARTITION_DEFINE(module_heap_partition, module_heap_buf, sizeof(module_heap_buf), K_MEM_PARTITION_P_RWX_U_RWX);
+K_MEM_PARTITION_DEFINE(module_code_partition, module_code_buf, CONFIG_MODULES_CODE_SIZE, K_MEM_PARTITION_P_RWX_U_RX);
+K_MEM_PARTITION_DEFINE(module_data_partition, module_data_buf, CONFIG_MODULES_DATA_SIZE, K_MEM_PARTITION_P_RW_U_RW);
+/* stack is automatically assigned to the thread */
 #endif
 
-struct k_heap module_heap;
+struct k_heap module_data;
+struct k_heap module_code;
 struct k_thread module_thread;
 
 static const char ELF_MAGIC[] = {0x7f, 'E', 'L', 'F'};
@@ -139,7 +145,7 @@ static int module_load_rel(struct module_stream *ms, struct module *m)
 	elf_shdr_t shdr;
 	size_t pos = ehdr.e_shoff;
 
-	ms->sect_map = k_heap_alloc(&module_heap, ehdr.e_shnum*sizeof(uint32_t), K_NO_WAIT);
+	ms->sect_map = k_heap_alloc(&module_data, ehdr.e_shnum*sizeof(uint32_t), K_NO_WAIT);
 	ms->sect_cnt = ehdr.e_shnum;
 
 	/* Find string tables */
@@ -200,19 +206,24 @@ static int module_load_rel(struct module_stream *ms, struct module *m)
 		bool valid = true;
 		enum module_mem mem_idx;
 		enum module_section sect_idx;
+		struct k_heap *mem_heap;
 
 		if (strncmp(name, ".text", sizeof(name)) == 0) {
 			mem_idx = MOD_MEM_TEXT;
 			sect_idx = MOD_SECT_TEXT;
+			mem_heap = &module_code;
 		} else if (strncmp(name, ".data", sizeof(name)) == 0) {
 			mem_idx = MOD_MEM_DATA;
 			sect_idx = MOD_SECT_DATA;
+			mem_heap = &module_data;
 		} else if (strncmp(name, ".rodata", sizeof(name)) == 0) {
 			mem_idx = MOD_MEM_RODATA;
 			sect_idx = MOD_SECT_RODATA;
+			mem_heap = &module_code;
 		} else if (strncmp(name, ".bss", sizeof(name)) == 0) {
 			mem_idx = MOD_MEM_BSS;
 			sect_idx = MOD_SECT_BSS;
+			mem_heap = &module_data;
 		} else {
 			LOG_DBG("Not copied section %s", name);
 			valid = false;
@@ -223,7 +234,7 @@ static int module_load_rel(struct module_stream *ms, struct module *m)
 			ms->sect_map[i] = sect_idx;
 
 			m->mem[mem_idx] =
-				k_heap_alloc(&module_heap, ms->sects[sect_idx].sh_size, K_NO_WAIT);
+				k_heap_alloc(mem_heap, ms->sects[sect_idx].sh_size, K_NO_WAIT);
 			module_seek(ms, ms->sects[sect_idx].sh_offset);
 			module_read(ms, m->mem[mem_idx], ms->sects[sect_idx].sh_size);
 
@@ -276,7 +287,7 @@ static int module_load_rel(struct module_stream *ms, struct module *m)
 
 	/* Copy over global function symbols to symtab */
 
-	m->sym_tab.syms = k_heap_alloc(&module_heap, func_syms_cnt*sizeof(struct module_symbol),
+	m->sym_tab.syms = k_heap_alloc(&module_data, func_syms_cnt*sizeof(struct module_symbol),
 				       K_NO_WAIT);
 	m->sym_tab.sym_cnt = func_syms_cnt;
 	pos = ms->sects[MOD_SECT_SYMTAB].sh_offset;
@@ -419,7 +430,7 @@ int module_load(struct module_stream *ms, const char name[16], struct module **m
 
 	if (ehdr.e_type == ET_REL) {
 		LOG_DBG("Loading relocatable elf");
-		*m = k_heap_alloc(&module_heap, sizeof(struct module), K_NO_WAIT);
+		*m = k_heap_alloc(&module_data, sizeof(struct module), K_NO_WAIT);
 		if (m == NULL) {
 			LOG_ERR("Not enough memory for module metadata");
 			ret = -ENOMEM;
@@ -450,21 +461,30 @@ void module_unload(struct module *m)
 
 	sys_slist_find_and_remove(&_module_list, &m->_mod_list);
 
-	k_heap_free(&module_heap, (void *)m->sym_tab.syms);
+	k_heap_free(&module_data, (void *)m->sym_tab.syms);
 
 	for (int i = 0; i < MOD_MEM_COUNT; i++) {
 		if (m->mem[i] != NULL) {
-			k_heap_free(&module_heap, m->mem[i]);
+			switch (i) {
+				case MOD_MEM_TEXT:
+				case MOD_MEM_RODATA:
+					k_heap_free(&module_code, m->mem[i]);
+					break;
+				case MOD_MEM_DATA:
+				case MOD_MEM_BSS:
+					k_heap_free(&module_data, m->mem[i]);
+					break;
+			}
 			m->mem[i] = NULL;
 		}
 	}
 
 	if (m->sym_tab.syms != NULL) {
-		k_heap_free(&module_heap, m->sym_tab.syms);
+		k_heap_free(&module_data, m->sym_tab.syms);
 		m->sym_tab.syms = NULL;
 	}
 
-	k_heap_free(&module_heap, (void *)m);
+	k_heap_free(&module_data, m);
 }
 
 int module_call_fn(struct module *m, const char *sym_name)
@@ -480,13 +500,13 @@ int module_call_fn(struct module *m, const char *sym_name)
 	k_tid_t tid = k_thread_create(
 			&module_thread,
 			module_stack,
-			CONFIG_MODULES_STACK_SIZE * 1024,
+			CONFIG_MODULES_STACK_SIZE,
 			(k_thread_entry_t)fn,
 			0, NULL, NULL,
 			3, K_USER, K_FOREVER
 		);
 	k_thread_name_set(tid, sym_name);
-	k_thread_heap_assign(&module_thread, &module_heap);
+	k_thread_heap_assign(&module_thread, &module_data);
 
 	// Start thread and wait for termination
 	k_thread_start(&module_thread);
@@ -495,9 +515,11 @@ int module_call_fn(struct module *m, const char *sym_name)
 
 static int module_init(void)
 {
-	k_heap_init(&module_heap, module_heap_buf, sizeof(module_heap_buf));
+	k_heap_init(&module_code, module_code_buf, CONFIG_MODULES_CODE_SIZE);
+	k_heap_init(&module_data, module_data_buf, CONFIG_MODULES_DATA_SIZE);
 #ifdef CONFIG_USERSPACE
-	k_mem_domain_add_partition(&k_mem_domain_default, &module_heap_partition);
+	k_mem_domain_add_partition(&k_mem_domain_default, &module_code_partition);
+	k_mem_domain_add_partition(&k_mem_domain_default, &module_data_partition);
 #endif
 
 	return 0;
