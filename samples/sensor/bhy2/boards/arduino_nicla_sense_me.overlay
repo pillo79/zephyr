@@ -1,0 +1,17 @@
+/*
+ * Copyright (c) 2023, Arduino SA
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+&spi2 {
+	cs-gpios = <&gpio0 26 GPIO_ACTIVE_LOW>,
+	           <&gpio0 31 GPIO_ACTIVE_LOW>;
+
+	bhi260@1 {
+		compatible = "bosch,bhy2";
+		reg = <1>;
+		spi-max-frequency = <16000000>;
+		int-gpios = <&gpio0 14 GPIO_ACTIVE_HIGH>;
+	};
+};

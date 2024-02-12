@@ -1,0 +1,17 @@
+# Copyright (c) 2018, Bosch Sensortec GmbH
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  The BHI2xx family is a set of smart sensor hubs that integrate sensors and
+  sensor fusion software, designed to offload the host processor from sensor
+  management tasks.
+
+compatible: "bosch,bhy2"
+
+include: [sensor-device.yaml, spi-device.yaml]
+
+properties:
+  int-gpios:
+    type: phandle-array
+    description: |
+      Identifies pin for the INT signal on the sensor.
