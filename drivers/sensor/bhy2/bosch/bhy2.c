@@ -1348,7 +1348,7 @@ static int8_t get_callback_info(uint8_t sensor_id,
     if ((dev != NULL) && (info != NULL))
     {
 #if BHY2_CFG_DELEGATE_FIFO_PARSE_CB_INFO_MGMT
-        bhy2_get_fifo_parse_callback_info_delegate(sensor_id, info, dev);
+        bhy2_get_callback_info_delegate(sensor_id, info, dev);
         if (sensor_id < BHY2_SPECIAL_SENSOR_ID_OFFSET) {
             info->event_size = dev->event_size_tab_regular[sensor_id];
         } else {

@@ -1,0 +1,15 @@
+# BMY2 temperature, pressure, humidity and gas sensor configuration options
+
+# Copyright (c) 2018 Bosch Sensortec GmbH
+# Copyright (c) 2022, Leonard Pollak
+#
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig BHY2
+	bool "BHY2 sensor"
+	default y
+	depends on DT_HAS_BOSCH_BHY2_ENABLED
+	select I2C
+	help
+	  Enable driver for BHY2 sensor fusion IC.
+
