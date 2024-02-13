@@ -1,0 +1,14 @@
+# Copyright (c) 2024 Arduino SA
+# SPDX-License-Identifier: Apache-2.0
+
+description:
+  Texas Instruments BQ25120A Low IQ Highly Integrated
+  Battery Charge Management Solution for Wearables and IoT
+
+compatible: "ti,bq25120a"
+
+include: i2c-device.yaml
+
+properties:
+  reg:
+    required: true

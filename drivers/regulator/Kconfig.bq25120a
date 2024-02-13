@@ -1,0 +1,17 @@
+# Copyright (c) 2024 Arduino SA
+# SPDX -License-Identifier: Apache-2.0
+
+config REGULATOR_BQ25120A
+	bool "BQ25120A PMIC regulator driver"
+	default y
+	depends on DT_HAS_TI_BQ25120A_REGULATOR_ENABLED
+	select I2C
+	help
+	  Enable the Texas Instruments BQ25120A regulator driver.
+
+config REGULATOR_BQ25120A_INIT_PRIORITY
+	int "BQ25120A regulator driver init priority"
+	default 76
+	depends on REGULATOR_BQ25120A
+	help
+	  Init priority for the Texas Instruments BQ25120A regulator driver.

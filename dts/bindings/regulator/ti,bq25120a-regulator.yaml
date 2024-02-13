@@ -1,0 +1,40 @@
+# Copyright (c) 2024 Arduino SA
+# SPDX -License-Identifier: Apache-2.0
+
+description: |
+  Texas Instruments BQ25120A Low IQ Highly Integrated
+  Battery Charge Management Solution for Wearables and IoT
+
+  This PMIC has one buck converter and one LDO converter. Both need to be
+  defined as children nodes, strictly following the BUCK and LDO node
+  names. For example:
+
+  pmic@46 {
+    compatible = "ti,bq25120a";
+    reg = <0x46>;
+    ...
+    regulators {
+      compatible = "ti,bq25120a-regulator";
+
+      BUCK {
+        /* all properties for BUCK */
+      };
+      LDO {
+        /* all properties for LDO */
+      };
+    };
+  };
+
+compatible: "ti,bq25120a-regulator"
+
+include: base.yaml
+
+child-binding:
+  include:
+    - name: regulator.yaml
+      property-allowlist:
+        - regulator-always-on
+        - regulator-boot-on
+        - regulator-init-microvolt
+        - regulator-min-microvolt
+        - regulator-max-microvolt
