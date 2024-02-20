@@ -73,6 +73,22 @@
 	pinctrl-0 = <&i2c0_default>;
 	pinctrl-1 = <&i2c0_sleep>;
 	pinctrl-names = "default", "sleep";
+
+	pmic: bq25120a@6a {
+		compatible = "ti,bq25120a";
+		reg = <0x6a>;
+
+		regulators {
+			compatible = "ti,bq25120a-regulator";
+
+			BUCK {
+				regulator-boot-on;
+			};
+
+			LDO {
+			};
+		};
+	};
 };
 
 /* I2C1 in datasheet */
