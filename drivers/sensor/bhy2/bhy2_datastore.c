@@ -36,55 +36,55 @@ void bhy2_datastore_init(void)
 	k_mutex_init(&data_mutex);
 }
 
-int bhy2_datastore_register(int channel)
+int bhy2_datastore_register(enum bhy2_sensor_id sid)
 {
 	struct bhy2_sensor_data *data;
 	int subchannels = 0;
 
 	/* Check if the id is known */
-	if (bhy2_sensors_get_info(BHY2_ID(channel), NULL, &subchannels) < 0) {
-		LOG_ERR("Unknown sensor id %d", BHY2_ID(channel));
+	if (bhy2_sensors_get_info(sid, NULL, &subchannels) < 0) {
+		LOG_ERR("Unknown sensor id %d", sid);
 		return -EINVAL;
 	}
 
 	k_mutex_lock(&data_mutex, K_FOREVER);
 
-	/* Check if the BHY2_ID(channel) is already registered */
-	data = find_sensor_data(BHY2_ID(channel));
+	/* Check if the sid is already registered */
+	data = find_sensor_data(sid);
 	if (data) {
 		k_mutex_unlock(&data_mutex);
-		LOG_DBG("Sensor id %d already registered", BHY2_ID(channel));
+		LOG_DBG("Sensor id %d already registered", sid);
 		return -EEXIST;
 	}
 
 	/* Allocate memory for the new data */
 	data = k_malloc(sizeof(struct bhy2_sensor_data) + subchannels*sizeof(struct sensor_value));
 	sys_sfnode_init(&data->node, 0);
-	data->id = BHY2_ID(channel);
+	data->id = sid;
 	sys_sflist_append(&data_list, &data->node);
 
 	k_mutex_unlock(&data_mutex);
 	return 0;
 }
 
-int bhy2_datastore_put(uint8_t id, const void *data_buf, int data_len)
+int bhy2_datastore_put(enum bhy2_sensor_id sid, const void *data_buf, int data_len)
 {
 	struct bhy2_sensor_data *data = NULL;
 
 	k_mutex_lock(&data_mutex, K_FOREVER);
 
 	/* Find the sensor data object */
-	data = find_sensor_data(id);
+	data = find_sensor_data(sid);
 	if (!data) {
 		k_mutex_unlock(&data_mutex);
-		LOG_DBG("Sensor id %d not registered", id);
+		LOG_DBG("Sensor id %d not registered", sid);
 		return 0;
 	}
 
-	int ret = bhy2_sensors_parse_data(id, data_buf, data_len, data->values);
+	int ret = bhy2_sensors_parse_data(sid, data_buf, data_len, data->values);
 	if (ret < 0) {
 		k_mutex_unlock(&data_mutex);
-		LOG_ERR("Failed to parse sensor data for id %d: %d", id, ret);
+		LOG_ERR("Failed to parse sensor data for id %d: %d", sid, ret);
 		return ret;
 	}
 
@@ -93,28 +93,24 @@ int bhy2_datastore_put(uint8_t id, const void *data_buf, int data_len)
 	return 0;
 }
 
-int bhy2_datastore_get(int channel, struct sensor_value *out)
+int bhy2_datastore_get(enum bhy2_sensor_id sid, struct sensor_value *out)
 {
 	struct bhy2_sensor_data *data = NULL;
 	int subchannels = 0;
 	int flags;
 
-	if (bhy2_sensors_get_info(BHY2_ID(channel), NULL, &subchannels) < 0) {
-		LOG_ERR("Failed to get sensor info for channel %d", BHY2_ID(channel));
-		return -EINVAL;
-	}
-	if (BHY2_SUBCH(channel) >= subchannels) {
-		LOG_ERR("Invalid subchannel %d for sensor channel %d", BHY2_SUBCH(channel), BHY2_ID(channel));
+	if (bhy2_sensors_get_info(sid, NULL, &subchannels) < 0) {
+		LOG_ERR("Failed to get sensor info for sid %d", sid);
 		return -EINVAL;
 	}
 
 	k_mutex_lock(&data_mutex, K_FOREVER);
 
 	/* Find the sensor data object */
-	data = find_sensor_data(BHY2_ID(channel));
+	data = find_sensor_data(sid);
 	if (!data) {
 		k_mutex_unlock(&data_mutex);
-		LOG_ERR("Sensor id %d not registered", BHY2_ID(channel));
+		LOG_ERR("Sensor id %d not registered", sid);
 		return -EINVAL;
 	}
 
@@ -125,7 +121,7 @@ int bhy2_datastore_get(int channel, struct sensor_value *out)
 	}
 
 	/* Copy the data */
-	*out = data->values[BHY2_SUBCH(channel)];
+	memcpy(out, data->values, subchannels*sizeof(struct sensor_value));
 
 	k_mutex_unlock(&data_mutex);
 	return 0;

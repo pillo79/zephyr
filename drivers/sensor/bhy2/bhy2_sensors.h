@@ -4,17 +4,6 @@
 #include <stdint.h>
 #include <zephyr/drivers/sensor.h>
 
-#define BHY2_SUBCH_OFFSET_BITS 10
-
-/* Get a channel number from sensor ID and subchannel */
-#define BHY2_CHANNEL(id, sub) ((int)((sub) << BHY2_SUBCH_OFFSET_BITS))
-
-/* Get sensor ID from channel number */
-#define BHY2_ID(ch) ((int)((ch) & (BIT(BHY2_SUBCH_OFFSET_BITS) - 1)))
-
-/* Get sensor subchannel index from channel number */
-#define BHY2_SUBCH(ch) ((int)((ch) >> (BHY2_SUBCH_OFFSET_BITS)))
-
 enum bhy2_sensor_id {
 	SENSOR_ID_ACC_PASS                 = 1,   /* Accelerometer passthrough */
 	SENSOR_ID_ACC_RAW                  = 3,   /* Accelerometer uncalibrated */
