@@ -21,11 +21,12 @@ int main(void)
 
 	printf("Device %p name is %s\n", dev, dev->name);
 
-	sensor_sample_fetch_chan(dev, SENSOR_CHAN_PRIV_START+131);
+	struct sensor_value freq_latency[2] = { { 1, 0 }, { 0, 50000 } };
+	sensor_attr_set(dev, SENSOR_CHAN_PRIV_START+131, SENSOR_ATTR_SAMPLING_FREQUENCY, freq_latency);
+
 	while (1) {
 		k_sleep(K_MSEC(3000));
 
-		sensor_sample_fetch_chan(dev, SENSOR_CHAN_ALL);
 		sensor_channel_get(dev, SENSOR_CHAN_PRIV_START+131, &gas_res);
 
 		printf("G: %d.%06d\n", gas_res.val1, gas_res.val2);
