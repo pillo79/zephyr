@@ -21,7 +21,7 @@
 #include <zephyr/logging/log_ctrl.h>
 
 #include "bhy2_zephyr.h"
-#include "bhy2_datastore.h"
+#include "bhy2_sensors.h"
 #include "bosch_parser.h"
 
 #include "bosch/bhy2.h"
@@ -123,58 +123,30 @@ void bhy2_delay_us(uint32_t us, void *private_data)
 		return ret;								\
 	}
 
-static int bhy2_attr_set(const struct device *dev,
-			 enum sensor_channel chan,
-			 enum sensor_attribute attr,
-			 const struct sensor_value *val)
-{
-	struct bhy2_data *data = dev->data;
-	int ret;
-
-	if (chan < SENSOR_CHAN_PRIV_START) {
-		LOG_WRN("attr_set() not supported on channel %d", chan);
-		return -ENOTSUP;
-	}
-
-	switch (attr) {
-	case SENSOR_ATTR_SAMPLING_FREQUENCY:
-                ret = bhy2_set_virt_sensor_cfg(chan - SENSOR_CHAN_PRIV_START, val[0].val1, val[1].val1*1000+val[1].val2/1000, &data->_bhy2);
-		bhy2_datastore_register(chan - SENSOR_CHAN_PRIV_START);
-		break;
-	default:
-		LOG_WRN("attr_set(): attribute %d not supported", attr);
-		ret = -ENOTSUP;
-		break;
-	}
-
-	return ret;
-}
-
 static int bhy2_sample_fetch(const struct device *dev,
 			     enum sensor_channel chan)
 {
 	struct bhy2_data *data = dev->data;
 	const struct bhy2_config *config = dev->config;
 
-	if (chan == SENSOR_CHAN_ALL) {
-		if (gpio_pin_get_dt(&config->int_gpio)) {
-			/* new data available */
-			int ret = bhy2_get_and_process_fifo(data->_workBuffer, WORK_BUFFER_SIZE, &data->_bhy2);
-			RETURN_ON_ERR(ret);
-		}
-		return 0;
-	} else if (chan >= SENSOR_CHAN_PRIV_START) {
-		return bhy2_datastore_register(chan - SENSOR_CHAN_PRIV_START);
-	} else {
+	if (chan != SENSOR_CHAN_ALL) {
 		return -ENOTSUP;
 	}
+
+	if (gpio_pin_get_dt(&config->int_gpio)) {
+		/* new data available */
+		int ret = bhy2_get_and_process_fifo(data->_workBuffer, WORK_BUFFER_SIZE, &data->_bhy2);
+		RETURN_ON_ERR(ret);
+	}
+
+	return 0;
 }
 
 static int bhy2_channel_get(const struct device *dev,
 			    enum sensor_channel chan,
 			    struct sensor_value *val)
 {
-	return bhy2_datastore_get(chan - SENSOR_CHAN_PRIV_START, val);
+	return bhy2_sensor_get_values(chan, val);
 }
 
 static void bhy2_int_thread(void *p1, void *p2, void *p3)
@@ -249,8 +221,6 @@ static int bhy2_zephyr_init(const struct device *dev)
 	int ret;
 	uint8_t stat = 0;
 
-	bhy2_datastore_init();
-
 	ret = bhy2_init(BHY2_SPI_INTERFACE, bhy2_spi_read, bhy2_spi_write, bhy2_delay_us,
 			MAX_READ_WRITE_LEN, (void*) dev, &data->_bhy2);
 	RETURN_ON_ERR(ret);
@@ -304,6 +274,9 @@ static int bhy2_zephyr_init(const struct device *dev)
 		}
 	}
 
+	ret = bhy2_sensors_init(&data->_bhy2);
+	RETURN_ON_ERR(ret);
+
 	ret = bhy2_int_setup(dev);
 	RETURN_ON_ERR(ret);
 
@@ -313,7 +286,6 @@ static int bhy2_zephyr_init(const struct device *dev)
 }
 
 static const struct sensor_driver_api bhy2_api_funcs = {
-	.attr_set = bhy2_attr_set,
 	.sample_fetch = bhy2_sample_fetch,
 	.channel_get = bhy2_channel_get,
 };

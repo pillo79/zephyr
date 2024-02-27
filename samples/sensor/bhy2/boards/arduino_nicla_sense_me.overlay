@@ -13,5 +13,12 @@
 		reg = <1>;
 		spi-max-frequency = <16000000>;
 		int-gpios = <&gpio0 14 GPIO_ACTIVE_HIGH>;
+
+		acc {
+			sensor-id = "ACC";
+			channel = "ACCEL_XYZ";
+			sampling-interval = <10>;
+			sampling-latency-ms = <100>;
+		};
 	};
 };

@@ -7,7 +7,6 @@
 zephyr_library()
 
 zephyr_library_sources(
-	bhy2_datastore.c
 	bhy2_sensors.c
 	bhy2_zephyr.c
 	bosch_parser.c

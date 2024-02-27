@@ -12,7 +12,7 @@
 int main(void)
 {
 	const struct device *const dev = DEVICE_DT_GET_ONE(bosch_bhy2);
-	struct sensor_value gas_res;
+	struct sensor_value gas_res[3];
 
 	if (!device_is_ready(dev)) {
 		printk("sensor: device not ready.\n");
@@ -21,15 +21,13 @@ int main(void)
 
 	printf("Device %p name is %s\n", dev, dev->name);
 
-	struct sensor_value freq_latency[2] = { { 1, 0 }, { 0, 50000 } };
-	sensor_attr_set(dev, SENSOR_CHAN_PRIV_START+131, SENSOR_ATTR_SAMPLING_FREQUENCY, freq_latency);
-
 	while (1) {
 		k_sleep(K_MSEC(3000));
 
-		sensor_channel_get(dev, SENSOR_CHAN_PRIV_START+131, &gas_res);
+		sensor_sample_fetch(dev);
+		sensor_channel_get(dev, SENSOR_CHAN_ACCEL_XYZ, gas_res);
 
-		printf("G: %d.%06d\n", gas_res.val1, gas_res.val2);
+		printf("G: %d.%06d\n", gas_res[0].val1, gas_res[0].val2);
 	}
 	return 0;
 }

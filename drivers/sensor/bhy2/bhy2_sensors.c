@@ -1,105 +1,109 @@
 #include "bhy2_sensors.h"
+#include "bosch/bhy2.h"
 
+#include <zephyr/drivers/sensor.h>
 #include <zephyr/logging/log.h>
 LOG_MODULE_DECLARE(bhy2, CONFIG_SENSOR_LOG_LEVEL);
 
-struct bhy2_sensor_info
-{
-	enum bhy2_sensor_id id;
-	enum bhy2_sensor_payload payload;
-	float scaleFactor;
+#define DT_DRV_COMPAT bosch_bhy2
+
+struct bhy2_chan_config;
+
+/* Define all parsers */
+#define DECLARE_PARSER_FN(name) \
+	int name(const struct bhy2_chan_config *info,	\
+		 const uint8_t *data_buf, int data_len, \
+		 struct sensor_value *values)
+
+typedef DECLARE_PARSER_FN(bhy2_parser_fn);
+
+struct bhy2_chan_config {
+	uint8_t sid;
+	enum sensor_channel chan;
+	int rate;
+	int interval;
+	int latency;
+	bhy2_parser_fn *parser_fn;
+	struct sensor_value *data;
+	int subchans;
+	float scale_factor;
 };
 
-struct bhy2_payload_info
-{
-	int subchannels;
-	int (*parser_fn)(const struct bhy2_sensor_info *info, const uint8_t *data_buf, int data_len, struct sensor_value *values);
-};
+/*
+ * The following functions are referenced by the sensor parser map, and
+ * that depends on the sensors that are enabled in the user's devicetree.
+ */
+static __maybe_unused DECLARE_PARSER_FN(parse_3axis_s16);
+static __maybe_unused DECLARE_PARSER_FN(parse_bsec);
+static __maybe_unused DECLARE_PARSER_FN(parse_bsec2);
+static __maybe_unused DECLARE_PARSER_FN(parse_bsec2_collector);
+static __maybe_unused DECLARE_PARSER_FN(parse_bsec_legacy);
+static __maybe_unused DECLARE_PARSER_FN(parse_euler);
+static __maybe_unused DECLARE_PARSER_FN(parse_quaternion);
+static __maybe_unused DECLARE_PARSER_FN(parse_s16_as_float);
+static __maybe_unused DECLARE_PARSER_FN(parse_scalar_event);
+static __maybe_unused DECLARE_PARSER_FN(parse_scalar_u16);
+static __maybe_unused DECLARE_PARSER_FN(parse_scalar_u32);
+static __maybe_unused DECLARE_PARSER_FN(parse_scalar_u8);
+static __maybe_unused DECLARE_PARSER_FN(parse_u24_as_float);
 
-static const struct bhy2_sensor_info BHY2_SENSOR_INFO[] = {
-	{ SENSOR_ID_ACC_PASS,		VECTOR3D,	    1.0 },
-	{ SENSOR_ID_ACC_RAW,		VECTOR3D,	    1.0 },
-	{ SENSOR_ID_ACC,		VECTOR3D,	    1.0 },
-	{ SENSOR_ID_ACC_BIAS,		VECTOR3D,	    1.0 },
-	{ SENSOR_ID_ACC_WU,		VECTOR3D,	    1.0 },
-	{ SENSOR_ID_ACC_RAW_WU,		VECTOR3D,	    1.0 },
-	{ SENSOR_ID_GYRO_PASS,		VECTOR3D,	    1.0 },
-	{ SENSOR_ID_GYRO_RAW,		VECTOR3D,	    1.0 },
-	{ SENSOR_ID_GYRO,		VECTOR3D,	    1.0 },
-	{ SENSOR_ID_GYRO_BIAS,		VECTOR3D,	    1.0 },
-	{ SENSOR_ID_GYRO_WU,		VECTOR3D,	    1.0 },
-	{ SENSOR_ID_GYRO_RAW_WU,	VECTOR3D,	    1.0 },
-	{ SENSOR_ID_MAG_PASS,		VECTOR3D,	    1.0 },
-	{ SENSOR_ID_MAG_RAW,		VECTOR3D,	    1.0 },
-	{ SENSOR_ID_MAG,		VECTOR3D,	    1.0 },
-	{ SENSOR_ID_MAG_BIAS,		VECTOR3D,	    1.0 },
-	{ SENSOR_ID_MAG_WU,		VECTOR3D,	    1.0 },
-	{ SENSOR_ID_MAG_RAW_WU,		VECTOR3D,	    1.0 },
-	{ SENSOR_ID_GRA,		VECTOR3D,	    1.0 },
-	{ SENSOR_ID_GRA_WU,		VECTOR3D,	    1.0 },
-	{ SENSOR_ID_LACC,		VECTOR3D,	    1.0 },
-	{ SENSOR_ID_LACC_WU,		VECTOR3D,	    1.0 },
-	{ SENSOR_ID_RV,			PQUATERNION,	    1.0 },
-	{ SENSOR_ID_RV_WU,		PQUATERNION,	    1.0 },
-	{ SENSOR_ID_GAMERV,		PQUATERNION,	    1.0 },
-	{ SENSOR_ID_GAMERV_WU,		PQUATERNION,	    1.0 },
-	{ SENSOR_ID_GEORV,		PQUATERNION,	    1.0 },
-	{ SENSOR_ID_GEORV_WU,		PQUATERNION,	    1.0 },
-	{ SENSOR_ID_ORI,		PEULER,		    0.01098 },
-	{ SENSOR_ID_ORI_WU,		PEULER,		    0.01098 },
-	{ SENSOR_ID_TILT_DETECTOR,	PEVENT,		    1.0 },
-	{ SENSOR_ID_STD,		PEVENT,		    1.0 },
-	{ SENSOR_ID_STC,		P32BITUNSIGNED,     1.0 },
-	{ SENSOR_ID_STC_WU,		P32BITUNSIGNED,     1.0 },
-	{ SENSOR_ID_SIG,		PEVENT,		    1.0 },
-	{ SENSOR_ID_WAKE_GESTURE,	PEVENT,		    1.0 },
-	{ SENSOR_ID_GLANCE_GESTURE,	PEVENT,		    1.0 },
-	{ SENSOR_ID_PICKUP_GESTURE,	PEVENT,		    1.0 },
-	{ SENSOR_ID_AR,			ACTIVITY,	    1.0 },
-	{ SENSOR_ID_WRIST_TILT_GESTURE,	PEVENT,		    1.0 },
-	{ SENSOR_ID_DEVICE_ORI,		P8BITUNSIGNED,      1.0 },
-	{ SENSOR_ID_DEVICE_ORI_WU,	P8BITUNSIGNED,      1.0 },
-	{ SENSOR_ID_STATIONARY_DET,	PEVENT,		    1.0 },
-	{ SENSOR_ID_MOTION_DET,		PEVENT,		    1.0 },
-	{ SENSOR_ID_ACC_BIAS_WU,	VECTOR3D,	    1.0 },
-	{ SENSOR_ID_GYRO_BIAS_WU,	VECTOR3D,	    1.0 },
-	{ SENSOR_ID_MAG_BIAS_WU,	VECTOR3D,	    1.0 },
-	{ SENSOR_ID_STD_WU,		PEVENT,		    1.0 },
-//	{ SENSOR_ID_KLIO,		KLIO,		    1.0 },
-	{ SENSOR_ID_BSEC,		BSEC,		    1.0 },
-	{ SENSOR_ID_BSEC2,		BSEC2,		    1.0 },
-	{ SENSOR_ID_BSEC2_COLLECTOR,	BSEC2_COLLECTOR,    1.0 },
-	{ SENSOR_ID_TEMP,		P16BITSIGNED,	    0.01 },
-	{ SENSOR_ID_BARO,		P24BITUNSIGNED,     0.0078 },
-	{ SENSOR_ID_HUM,		P8BITUNSIGNED,      1.0 },
-	{ SENSOR_ID_GAS,		P32BITUNSIGNED,     1.0 },
-	{ SENSOR_ID_TEMP_WU,		P16BITSIGNED,	    0.01 },
-	{ SENSOR_ID_BARO_WU,		P24BITUNSIGNED,     0.0078 },
-	{ SENSOR_ID_HUM_WU,		P8BITUNSIGNED,      1.0 },
-	{ SENSOR_ID_GAS_WU,		P32BITUNSIGNED,     1.0 },
-	{ SENSOR_ID_STC_HW,		P32BITUNSIGNED,     1.0 },
-	{ SENSOR_ID_STD_HW,		PEVENT,		    1.0 },
-	{ SENSOR_ID_SIG_HW,		PEVENT,		    1.0 },
-	{ SENSOR_ID_STC_HW_WU,		P32BITUNSIGNED,     1.0 },
-	{ SENSOR_ID_STD_HW_WU,		PEVENT,		    1.0 },
-	{ SENSOR_ID_SIG_HW_WU,		PEVENT,		    1.0 },
-	{ SENSOR_ID_ANY_MOTION,		PEVENT,		    1.0 },
-	{ SENSOR_ID_ANY_MOTION_WU,	PEVENT,		    1.0 },
-	{ SENSOR_ID_EXCAMERA,		P8BITUNSIGNED,      1.0 },
-	{ SENSOR_ID_GPS,		VECTOR3D,	    1.0 },
-	{ SENSOR_ID_LIGHT,		P16BITUNSIGNED,     46.296 },
-	{ SENSOR_ID_PROX,		P8BITUNSIGNED,      1.0 },
-	{ SENSOR_ID_LIGHT_WU,		P16BITUNSIGNED,     46.296 },
-	{ SENSOR_ID_PROX_WU,		P8BITUNSIGNED,      1.0 },
-	{ SENSOR_ID_BSEC_LEGACY,	BSEC_LEGACY,	    1.0 },
-	{ DEBUG_DATA_EVENT,		DEBUG_DATA,	    1.0 },
-	{ TIMESTAMP_SMALL_DELTA,	P8BITUNSIGNED,      0.000015625 },
-	{ TIMESTAMP_SMALL_DELTA_WU,	P8BITUNSIGNED,      0.000015625 },
-	{ TIMESTAMP_LARGE_DELTA,	P8BITUNSIGNED,      0.000015625 },
-	{ TIMESTAMP_LARGE_DELTA_WU,	P8BITUNSIGNED,      0.000015625 },
-	{ TIMESTAMP_FULL,		P8BITUNSIGNED,      0.000015625 },
-	{ TIMESTAMP_FULL_WU,		P8BITUNSIGNED,      0.000015625 }
-};
+/* Get the actual map of sensor name to parse information */
+#include "sensor_parser_map.h"
+
+/* Get the BHY2 sensor id from the node identifier */
+#define BHY2_CH_EXPAND(node_id, m_body)					\
+	BHY2_CH_EXPAND2(node_id, m_body,				\
+			DT_STRING_UNQUOTED(node_id, sensor_id),		\
+		        DT_STRING_UNQUOTED_OR(node_id, channel,))	\
+
+/* Use the sensor name to compute all the macro names, and pass it to
+ * the actual macro body */
+#define BHY2_CH_EXPAND2(node_id, m_body, s_ident, c_ident)		\
+	m_body(node_id,							\
+	       DT_CAT3(BHY2_SENSOR_ID_, s_ident,),			\
+	       DT_CAT3(BHY2_, s_ident, _PARSER),			\
+	       DT_CAT3(BHY2_, s_ident, _LENGTH),			\
+	       DT_CAT3(BHY2_, s_ident, _FACTOR),			\
+	       DT_CAT3(bhy2_, s_ident, _data),				\
+	       c_ident)
+
+/* Define the channel information using the macro names */
+#define BHY2_CH_DATA(node_id, m_sid, m_parser, m_length, m_factor, m_data, m_chan) \
+	static struct sensor_value m_data[m_length];
+
+/* Define the constant channel information using the macro names */
+#define BHY2_CH_CONST(node_id, m_sid, m_parser, m_length, m_factor, m_data, m_chan) \
+{									\
+	.sid = m_sid,							\
+	.chan = COND_CODE_1(DT_NODE_HAS_PROP(node_id, channel),		\
+			    (SENSOR_CHAN_ ## m_chan),			\
+			    (SENSOR_CHAN_PRIV_START + m_sid)),		\
+	.data = m_data,							\
+	.parser_fn = &m_parser,						\
+	.subchans = m_length,						\
+	.rate = DT_PROP_OR(node_id, sampling_rate, 0),		        \
+	.interval = DT_PROP_OR(node_id, sampling_interval, 0),	        \
+	.latency = DT_PROP(node_id, sampling_latency_ms),		\
+	.scale_factor = DT_STRING_UNQUOTED_OR(node_id,			\
+					      scale_factor,		\
+					      m_factor),		\
+},
+
+/* Define the constant channel information table and data storages */
+#define BHY2_DEFINE(inst)						\
+	static struct k_mutex data_mutex;                               \
+	DT_FOREACH_CHILD_VARGS(DT_DRV_INST(inst),			\
+			       BHY2_CH_EXPAND,				\
+			       BHY2_CH_DATA)				\
+	static const struct bhy2_chan_config BHY2_CHAN_CONFIG[] = {	\
+		DT_FOREACH_CHILD_SEP_VARGS(DT_DRV_INST(inst),		\
+				       BHY2_CH_EXPAND,			\
+				       (,),				\
+				       BHY2_CH_CONST)			\
+	};
+
+DT_INST_FOREACH_STATUS_OKAY(BHY2_DEFINE)
+
 
 static int getFloat(struct sensor_value *dest, const uint8_t *data_buf, int data_len, uint8_t index, float scale_factor)
 {
@@ -126,7 +130,7 @@ static int getUint8(struct sensor_value *dest, const uint8_t *data_buf, int data
 	}
 
 	result = data_buf[index];
-	if (scale_factor != 1.0f) {
+	if (scale_factor) {
 		float scaled = (float)(result * scale_factor);
 		dest->val1 = (int32_t)scaled;
 		dest->val2 = (int32_t)((scaled - dest->val1) * 1000000);
@@ -147,7 +151,7 @@ static int getUint16(struct sensor_value *dest, const uint8_t *data_buf, int dat
 	}
 
 	memcpy(&result, &data_buf[index], res_len);
-	if (scale_factor != 1.0f) {
+	if (scale_factor) {
 		float scaled = (float)(result * scale_factor);
 		dest->val1 = (int32_t)scaled;
 		dest->val2 = (int32_t)((scaled - dest->val1) * 1000000);
@@ -168,7 +172,7 @@ static int getUint24(struct sensor_value *dest, const uint8_t *data_buf, int dat
 	}
 
 	memcpy(&result, &data_buf[index], res_len);
-	if (scale_factor != 1.0f) {
+	if (scale_factor) {
 		float scaled = (float)(result * scale_factor);
 		dest->val1 = (int32_t)scaled;
 		dest->val2 = (int32_t)((scaled - dest->val1) * 1000000);
@@ -189,7 +193,7 @@ static int getUint32(struct sensor_value *dest, const uint8_t *data_buf, int dat
 	}
 
 	memcpy(&result, &data_buf[index], res_len);
-	if (scale_factor != 1.0f) {
+	if (scale_factor) {
 		float scaled = (float)(result * scale_factor);
 		dest->val1 = (int32_t)scaled;
 		dest->val2 = (int32_t)((scaled - dest->val1) * 1000000);
@@ -210,32 +214,12 @@ static int getUint64(struct sensor_value *dest, const uint8_t *data_buf, int dat
 	}
 
 	memcpy(&result, &data_buf[index], res_len);
-	if (scale_factor != 1.0f) {
+	if (scale_factor) {
 		float scaled = (float)(result * scale_factor);
 		dest->val1 = (int32_t)scaled;
 		dest->val2 = (int32_t)((scaled - dest->val1) * 1000000);
 	} else {
 		dest->val1 = (int32_t)result;
-		dest->val2 = 0;
-	}
-	return 0;
-}
-
-static int getInt8(struct sensor_value *dest, const uint8_t *data_buf, int data_len, uint8_t index, float scale_factor)
-{
-	int8_t result = 0;
-	if (index >= data_len) {
-		dest->val1 = dest->val2 = 0;
-		return -EINVAL;
-	}
-
-	result = (int8_t)data_buf[index];
-	if (scale_factor != 1.0f) {
-		float scaled = (float)(result * scale_factor);
-		dest->val1 = (int32_t)scaled;
-		dest->val2 = (int32_t)((scaled - dest->val1) * 1000000);
-	} else {
-		dest->val1 = result;
 		dest->val2 = 0;
 	}
 	return 0;
@@ -251,7 +235,7 @@ static int getInt16(struct sensor_value *dest, const uint8_t *data_buf, int data
 	}
 
 	memcpy(&result, &data_buf[index], res_len);
-	if (scale_factor != 1.0f) {
+	if (scale_factor) {
 		float scaled = (float)(result * scale_factor);
 		dest->val1 = (int32_t)scaled;
 		dest->val2 = (int32_t)((scaled - dest->val1) * 1000000);
@@ -262,225 +246,196 @@ static int getInt16(struct sensor_value *dest, const uint8_t *data_buf, int data
 	return 0;
 }
 
-static __unused int getInt24(struct sensor_value *dest, const uint8_t *data_buf, int data_len, uint8_t index, float scale_factor)
-{
-	int32_t result = 0;
-	uint8_t res_len = 3;
-	if (index + res_len > data_len) {
-		dest->val1 = dest->val2 = 0;
-		return -EINVAL;
-	}
+#define BHY2_ASSERT(cmd) do { int res = cmd; if (res) return res; } while (0)
 
-	memcpy(&result, &data_buf[index], res_len);
-	if (scale_factor != 1.0f) {
-		float scaled = (float)(result * scale_factor);
-		dest->val1 = (int32_t)scaled;
-		dest->val2 = (int32_t)((scaled - dest->val1) * 1000000);
-	} else {
-		dest->val1 = result;
-		dest->val2 = 0;
-	}
+static int parse_3axis_s16(const struct bhy2_chan_config *info, const uint8_t *data_buf, int data_len, struct sensor_value *values)
+{
+	BHY2_ASSERT(getInt16(&values[0], data_buf, data_len, 0, info->scale_factor));	/* x */
+	BHY2_ASSERT(getInt16(&values[1], data_buf, data_len, 2, info->scale_factor));	/* y */
+	BHY2_ASSERT(getInt16(&values[2], data_buf, data_len, 4, info->scale_factor));	/* z */
 	return 0;
 }
 
-static int getInt32(struct sensor_value *dest, const uint8_t *data_buf, int data_len, uint8_t index, float scale_factor)
+static int parse_euler(const struct bhy2_chan_config *info, const uint8_t *data_buf, int data_len, struct sensor_value *values)
 {
-	int32_t result = 0;
-	uint8_t res_len = sizeof(result);
-	if (index + res_len > data_len) {
-		dest->val1 = dest->val2 = 0;
-		return -EINVAL;
-	}
-
-	memcpy(&result, &data_buf[index], res_len);
-	if (scale_factor != 1.0f) {
-		float scaled = (float)(result * scale_factor);
-		dest->val1 = (int32_t)scaled;
-		dest->val2 = (int32_t)((scaled - dest->val1) * 1000000);
-	} else {
-		dest->val1 = result;
-		dest->val2 = 0;
-	}
+	BHY2_ASSERT(getInt16(&values[0], data_buf, data_len, 0, info->scale_factor));	/* heading */
+	BHY2_ASSERT(getInt16(&values[1], data_buf, data_len, 2, info->scale_factor));	/* pitch */
+	BHY2_ASSERT(getInt16(&values[2], data_buf, data_len, 4, info->scale_factor));	/* roll */
 	return 0;
 }
 
-#define RET_ON_ERR(cmd) do { res = cmd; if (res) return res; } while (0)
-
-static int parse3DVector(const struct bhy2_sensor_info *info, const uint8_t *data_buf, int data_len, struct sensor_value *values)
+static int parse_quaternion(const struct bhy2_chan_config *info, const uint8_t *data_buf, int data_len, struct sensor_value *values)
 {
-	int res;
-	RET_ON_ERR(getInt16(&values[0], data_buf, data_len, 0, 1.0));	/* x */
-	RET_ON_ERR(getInt16(&values[1], data_buf, data_len, 2, 1.0));	/* y */
-	RET_ON_ERR(getInt16(&values[2], data_buf, data_len, 4, 1.0));	/* z */
+	BHY2_ASSERT(getInt16(&values[0], data_buf, data_len, 0, info->scale_factor));	/* x */
+	BHY2_ASSERT(getInt16(&values[1], data_buf, data_len, 2, info->scale_factor));	/* y */
+	BHY2_ASSERT(getInt16(&values[2], data_buf, data_len, 4, info->scale_factor));	/* z */
+	BHY2_ASSERT(getInt16(&values[3], data_buf, data_len, 6, info->scale_factor));	/* w */
+	BHY2_ASSERT(getUint16(&values[4], data_buf, data_len, 8, info->scale_factor));	/* accuracy */
 	return 0;
 }
 
-static int parseEuler(const struct bhy2_sensor_info *info, const uint8_t *data_buf, int data_len, struct sensor_value *values)
+static int parse_bsec(const struct bhy2_chan_config *info, const uint8_t *data_buf, int data_len, struct sensor_value *values)
 {
-	int res;
-	RET_ON_ERR(getInt16(&values[0], data_buf, data_len, 0, info->scaleFactor));	/* heading */
-	RET_ON_ERR(getInt16(&values[1], data_buf, data_len, 2, info->scaleFactor));	/* pitch */
-	RET_ON_ERR(getInt16(&values[2], data_buf, data_len, 4, info->scaleFactor));	/* roll */
-	return 0;
-}
-
-static int parseQuaternion(const struct bhy2_sensor_info *info, const uint8_t *data_buf, int data_len, struct sensor_value *values)
-{
-	int res;
-	RET_ON_ERR(getInt16(&values[0], data_buf, data_len, 0, info->scaleFactor));     /* x */
-	RET_ON_ERR(getInt16(&values[1], data_buf, data_len, 2, info->scaleFactor));	/* y */
-	RET_ON_ERR(getInt16(&values[2], data_buf, data_len, 4, info->scaleFactor));	/* z */
-	RET_ON_ERR(getInt16(&values[3], data_buf, data_len, 6, info->scaleFactor));	/* w */
-	RET_ON_ERR(getUint16(&values[4], data_buf, data_len, 8, info->scaleFactor));	/* accuracy */
-	return 0;
-}
-
-static int parseBSEC(const struct bhy2_sensor_info *info, const uint8_t *data_buf, int data_len, struct sensor_value *values)
-{
-	int res;
 	const float SCALE_BSEC_BVOC_EQ = 0.01f;
 	const float SCALE_BSEC_COMP_T = 1.0f / 256;
 	const float SCALE_BSEC_COMP_H = 1.0f / 500;
 
-	RET_ON_ERR(getUint16(&values[0], data_buf, data_len, 0, 1.0));			/* iaq */
-	RET_ON_ERR(getUint16(&values[1], data_buf, data_len, 2, 1.0));			/* iaq_s */
-	RET_ON_ERR(getUint16(&values[2], data_buf, data_len, 4, SCALE_BSEC_BVOC_EQ));	/* b_voc_eq */
-	RET_ON_ERR(getUint24(&values[3], data_buf, data_len, 6, 1.0));			/* co2_eq */
-	RET_ON_ERR(getUint8(&values[4], data_buf, data_len, 9, 1.0));			/* accuracy */
-	RET_ON_ERR(getInt16(&values[5], data_buf, data_len, 10, SCALE_BSEC_COMP_T));	/* comp_t */
-	RET_ON_ERR(getUint16(&values[6], data_buf, data_len, 12, SCALE_BSEC_COMP_H));	/* comp_h */
-	RET_ON_ERR(getFloat(&values[7], data_buf, data_len, 14, 1.0));	                /* comp_g */
+	BHY2_ASSERT(getUint16(&values[0], data_buf, data_len, 0, 1.0));			/* iaq */
+	BHY2_ASSERT(getUint16(&values[1], data_buf, data_len, 2, 1.0));			/* iaq_s */
+	BHY2_ASSERT(getUint16(&values[2], data_buf, data_len, 4, SCALE_BSEC_BVOC_EQ));	/* b_voc_eq */
+	BHY2_ASSERT(getUint24(&values[3], data_buf, data_len, 6, 1.0));			/* co2_eq */
+	BHY2_ASSERT(getUint8(&values[4], data_buf, data_len, 9, 1.0));			/* accuracy */
+	BHY2_ASSERT(getInt16(&values[5], data_buf, data_len, 10, SCALE_BSEC_COMP_T));	/* comp_t */
+	BHY2_ASSERT(getUint16(&values[6], data_buf, data_len, 12, SCALE_BSEC_COMP_H));	/* comp_h */
+	BHY2_ASSERT(getFloat(&values[7], data_buf, data_len, 14, 1.0));			/* comp_g */
 	return 0;
 }
 
-static int parseBSEC2(const struct bhy2_sensor_info *info, const uint8_t *data_buf, int data_len, struct sensor_value *values)
+static int parse_bsec_legacy(const struct bhy2_chan_config *info, const uint8_t *data_buf, int data_len, struct sensor_value *values)
 {
-	int res;
-	RET_ON_ERR(getUint8(&values[0], data_buf, data_len, 0, 1.0));	/* gas_estimates[0] */
-	RET_ON_ERR(getUint8(&values[1], data_buf, data_len, 1, 1.0));	/* gas_estimates[1] */
-	RET_ON_ERR(getUint8(&values[2], data_buf, data_len, 2, 1.0));	/* gas_estimates[2] */
-	RET_ON_ERR(getUint8(&values[3], data_buf, data_len, 3, 1.0));	/* gas_estimates[3] */
-	RET_ON_ERR(getUint8(&values[4], data_buf, data_len, 4, 1.0));	/* accuracy */
+	BHY2_ASSERT(getFloat(&values[0], data_buf, data_len, 0, 1.0));	/* comp_t */
+	BHY2_ASSERT(getFloat(&values[1], data_buf, data_len, 4, 1.0));	/* comp_h */
+	//note that: SENSOR_DATA_FIXED_LENGTH is defined as 10 by default,
+	//so all the fields below are 0 unless it's redefined to 29 and above
+	BHY2_ASSERT(getFloat(&values[2], data_buf, data_len, 8, 1.0));	/* comp_g */
+	BHY2_ASSERT(getFloat(&values[3], data_buf, data_len, 12, 1.0));	/* iaq */
+	BHY2_ASSERT(getFloat(&values[4], data_buf, data_len, 16, 1.0));	/* iaq_s */
+	BHY2_ASSERT(getFloat(&values[5], data_buf, data_len, 20, 1.0));	/* co2_eq */
+	BHY2_ASSERT(getFloat(&values[6], data_buf, data_len, 24, 1.0));	/* b_voc_eq */
+	BHY2_ASSERT(getUint8(&values[7], data_buf, data_len, 28, 1.0));	/* accuracy */
 	return 0;
 }
 
-static int parseBSEC2Collector(const struct bhy2_sensor_info *info, const uint8_t *data_buf, int data_len, struct sensor_value *values)
+static int parse_bsec2(const struct bhy2_chan_config *info, const uint8_t *data_buf, int data_len, struct sensor_value *values)
 {
-	int res;
+	BHY2_ASSERT(getUint8(&values[0], data_buf, data_len, 0, 1.0));	/* gas_estimates[0] */
+	BHY2_ASSERT(getUint8(&values[1], data_buf, data_len, 1, 1.0));	/* gas_estimates[1] */
+	BHY2_ASSERT(getUint8(&values[2], data_buf, data_len, 2, 1.0));	/* gas_estimates[2] */
+	BHY2_ASSERT(getUint8(&values[3], data_buf, data_len, 3, 1.0));	/* gas_estimates[3] */
+	BHY2_ASSERT(getUint8(&values[4], data_buf, data_len, 4, 1.0));	/* accuracy */
+	return 0;
+}
+
+static int parse_bsec2_collector(const struct bhy2_chan_config *info, const uint8_t *data_buf, int data_len, struct sensor_value *values)
+{
 	const float SCALE_BSEC_TS = 1.0E-9f;
 	const float SCALE_BSEC_COMP_T = 1.0f / 256;
 	const float SCALE_BSEC_COMP_H = 1.0f / 500;
 
-	RET_ON_ERR(getUint64(&values[0], data_buf, data_len, 0, SCALE_BSEC_TS));	/* timestamp */
-	RET_ON_ERR(getInt16(&values[1], data_buf, data_len, 8, SCALE_BSEC_COMP_T));	/* raw_temp */
-	RET_ON_ERR(getFloat(&values[2], data_buf, data_len, 10, 1.0));			/* raw_pressure */
-	RET_ON_ERR(getUint16(&values[3], data_buf, data_len, 14, SCALE_BSEC_COMP_H));	/* raw_hum */
-	RET_ON_ERR(getFloat(&values[4], data_buf, data_len, 16, 1.0));			/* raw_gas */
-	RET_ON_ERR(getUint8(&values[5], data_buf, data_len, 20, 1.0));			/* gas_index */
+	BHY2_ASSERT(getUint64(&values[0], data_buf, data_len, 0, SCALE_BSEC_TS));	/* timestamp */
+	BHY2_ASSERT(getInt16(&values[1], data_buf, data_len, 8, SCALE_BSEC_COMP_T));	/* raw_temp */
+	BHY2_ASSERT(getFloat(&values[2], data_buf, data_len, 10, 1.0));			/* raw_pressure */
+	BHY2_ASSERT(getUint16(&values[3], data_buf, data_len, 14, SCALE_BSEC_COMP_H));	/* raw_hum */
+	BHY2_ASSERT(getFloat(&values[4], data_buf, data_len, 16, 1.0));			/* raw_gas */
+	BHY2_ASSERT(getUint8(&values[5], data_buf, data_len, 20, 1.0));			/* gas_index */
 	return 0;
 }
 
-static int parseBSECLegacy(const struct bhy2_sensor_info *info, const uint8_t *data_buf, int data_len, struct sensor_value *values)
+static int parse_scalar_u32(const struct bhy2_chan_config *info, const uint8_t *data_buf, int data_len, struct sensor_value *values)
 {
-	int res;
-	RET_ON_ERR(getFloat(&values[0], data_buf, data_len, 0, 1.0));	/* comp_t */
-	RET_ON_ERR(getFloat(&values[1], data_buf, data_len, 4, 1.0));	/* comp_h */
-	//note that: SENSOR_DATA_FIXED_LENGTH is defined as 10 by default,
-	//so all the fields below are 0 unless it's redefined to 29 and above
-	RET_ON_ERR(getFloat(&values[2], data_buf, data_len, 8, 1.0));   /* comp_g */
-	RET_ON_ERR(getFloat(&values[3], data_buf, data_len, 12, 1.0));	/* iaq */
-	RET_ON_ERR(getFloat(&values[4], data_buf, data_len, 16, 1.0));	/* iaq_s */
-	RET_ON_ERR(getFloat(&values[5], data_buf, data_len, 20, 1.0));	/* co2_eq */
-	RET_ON_ERR(getFloat(&values[6], data_buf, data_len, 24, 1.0));	/* b_voc_eq */
-	RET_ON_ERR(getUint8(&values[7], data_buf, data_len, 28, 1.0));	/* accuracy */
+	BHY2_ASSERT(getUint32(values, data_buf, data_len, 0, info->scale_factor));
 	return 0;
 }
 
-static int parseSingleData(const struct bhy2_sensor_info *info, const uint8_t *data_buf, int data_len, struct sensor_value *values)
+static int parse_scalar_u16(const struct bhy2_chan_config *info, const uint8_t *data_buf, int data_len, struct sensor_value *values)
 {
-	int res = 0;
-	switch (info->payload) {
-	case P8BITSIGNED:
-		res = getInt8(values, data_buf, data_len, 0, info->scaleFactor);
-		break;
-	case P8BITUNSIGNED:
-		res = getUint8(values, data_buf, data_len, 0, info->scaleFactor);
-		break;
-	case P16BITSIGNED:
-		res = getInt16(values, data_buf, data_len, 0, info->scaleFactor);
-		break;
-	case P16BITUNSIGNED:
-		res = getUint16(values, data_buf, data_len, 0, info->scaleFactor);
-		break;
-	case P24BITUNSIGNED:
-		res = getUint24(values, data_buf, data_len, 0, info->scaleFactor);
-		break;
-	case P32BITSIGNED:
-		res = getInt32(values, data_buf, data_len, 0, info->scaleFactor);
-		break;
-	case P32BITUNSIGNED:
-		res = getUint32(values, data_buf, data_len, 0, info->scaleFactor);
-		break;
-	case PEVENT:
-		values->val1 = 1;
-		values->val2 = 0;
-		break;
-	case ACTIVITY:
-		res = getUint16(values, data_buf, data_len, 0, 1.0);
-		break;
-	default:
-		res = -EINVAL;
-		break;
-	}
-	return res;
+	BHY2_ASSERT(getUint16(values, data_buf, data_len, 0, info->scale_factor));
+	return 0;
 }
 
-static const struct bhy2_payload_info BHY2_PAYLOAD_INFO[NUM_PAYLOADS] = {
-	[PQUATERNION]		= { 5, parseQuaternion },
-	[VECTOR3D]		= { 3, parse3DVector },
-	[PEULER]		= { 3, parseEuler },
-	[P8BITSIGNED]		= { 1, parseSingleData },
-	[P8BITUNSIGNED]	        = { 1, parseSingleData },
-	[P16BITSIGNED]		= { 1, parseSingleData },
-	[P16BITUNSIGNED]	= { 1, parseSingleData },
-	[P32BITSIGNED]		= { 1, parseSingleData },
-	[P32BITUNSIGNED]	= { 1, parseSingleData },
-	[P24BITUNSIGNED]	= { 1, parseSingleData },
-	[P40BITUNSIGNED]	= { 1, parseSingleData },
-	[PEVENT]		= { 1, parseSingleData },
-	[ACTIVITY]		= { 1, parseSingleData },
-	[BSEC]			= { 8, parseBSEC },
-	[BSEC_LEGACY]		= { 8, parseBSECLegacy },
-	[BSEC2]			= { 5, parseBSEC2 },
-	[BSEC2_COLLECTOR]	= { 6, parseBSEC2Collector },
-};
-
-int bhy2_sensors_get_info(enum bhy2_sensor_id id, enum bhy2_sensor_payload *payload, int *subchannels)
+static int parse_scalar_u8(const struct bhy2_chan_config *info, const uint8_t *data_buf, int data_len, struct sensor_value *values)
 {
-	for (int i = 0; i < ARRAY_SIZE(BHY2_SENSOR_INFO); i++) {
-		const struct bhy2_sensor_info *info = &BHY2_SENSOR_INFO[i];
-		if (info->id == id) {
-			if (payload) {
-				*payload = info->payload;
-			}
-			if (subchannels) {
-				*subchannels = BHY2_PAYLOAD_INFO[info->payload].subchannels;
-			}
-			return 0;
+	BHY2_ASSERT(getUint8(values, data_buf, data_len, 0, info->scale_factor));
+	return 0;
+}
+
+static int parse_scalar_event(const struct bhy2_chan_config *info, const uint8_t *data_buf, int data_len, struct sensor_value *values)
+{
+	ARG_UNUSED(info);
+	ARG_UNUSED(data_buf);
+	ARG_UNUSED(data_len);
+
+	values->val1 = 1;
+	values->val2 = 0;
+	return 0;
+}
+
+static inline const struct bhy2_chan_config *find_chan_config_by_sid(uint8_t sid)
+{
+	for (int i = 0; i < ARRAY_SIZE(BHY2_CHAN_CONFIG); i++) {
+		if (BHY2_CHAN_CONFIG[i].sid == sid) {
+			return &BHY2_CHAN_CONFIG[i];
 		}
 	}
 
-	return -EINVAL;
+	return NULL;
 }
 
-int bhy2_sensors_parse_data(enum bhy2_sensor_id id, const uint8_t *data_buf, int data_len, struct sensor_value *values)
+static inline const struct bhy2_chan_config *find_chan_config_by_chan(enum sensor_channel chan)
 {
-	for (int i = 0; i < ARRAY_SIZE(BHY2_SENSOR_INFO); i++) {
-		const struct bhy2_sensor_info *info = &BHY2_SENSOR_INFO[i];
-		if (info->id == id) {
-			return BHY2_PAYLOAD_INFO[info->payload].parser_fn(info, data_buf, data_len, values);
+	for (int i = 0; i < ARRAY_SIZE(BHY2_CHAN_CONFIG); i++) {
+		if (BHY2_CHAN_CONFIG[i].chan == chan) {
+			return &BHY2_CHAN_CONFIG[i];
 		}
 	}
 
-	return -EINVAL;
+	return NULL;
+}
+
+int bhy2_sensor_subchans(uint8_t sid)
+{
+	const struct bhy2_chan_config *info = find_chan_config_by_sid(sid);
+	return info ? info->subchans : -EINVAL;
+}
+
+int bhy2_sensor_parse_data(uint8_t sid, const uint8_t *data_buf, int data_len)
+{
+	int ret;
+	const struct bhy2_chan_config *info = find_chan_config_by_sid(sid);
+
+	if (info) {
+		k_mutex_lock(&data_mutex, K_FOREVER);
+		ret = info->parser_fn(info, data_buf, data_len, info->data);
+		k_mutex_unlock(&data_mutex);
+	} else {
+		ret = -EINVAL;
+	}
+
+	return ret;
+}
+
+int bhy2_sensor_get_values(enum sensor_channel chan, struct sensor_value *values)
+{
+	const struct bhy2_chan_config *info = find_chan_config_by_chan(chan);
+
+	if (!info) {
+		return -EINVAL;
+	}
+
+	k_mutex_lock(&data_mutex, K_FOREVER);
+	memcpy(values, info->data, info->subchans * sizeof(struct sensor_value));
+	k_mutex_unlock(&data_mutex);
+	return 0;
+}
+
+int bhy2_sensors_init(struct bhy2_dev *dev)
+{
+	for (int i = 0; i < ARRAY_SIZE(BHY2_CHAN_CONFIG); i++) {
+		const struct bhy2_chan_config *info = &BHY2_CHAN_CONFIG[i];
+		float rate_hz;
+
+		memset(info->data, 0, info->subchans * sizeof(struct sensor_value));
+		if (info->rate && !info->interval) {
+			rate_hz = info->rate;
+		} else if (info->interval) {
+			rate_hz = 1.0f / info->interval;
+		} else {
+			LOG_ERR("Invalid sampling rate and/or interval for sensor %d", info->sid);
+			continue;
+		}
+		
+		BHY2_ASSERT(bhy2_set_virt_sensor_cfg(info->sid, rate_hz, info->latency, dev));
+	}
+
+	return 0;
 }

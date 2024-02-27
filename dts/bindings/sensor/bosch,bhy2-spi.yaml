@@ -15,3 +15,50 @@ properties:
     type: phandle-array
     description: |
       Identifies pin for the INT signal on the sensor.
+
+child-binding:
+  description: |
+    Information on a BHI2xx sensor channel.
+  properties:
+    sensor-id:
+      type: string
+      required: true
+      description: |
+        The sensor name as defined in the BHY2 sensor hub framework,
+        without the BHY2_SENSOR_ID_ prefix. For example, refer to the
+        calibrated accelerometer data as "ACC".
+    channel:
+      type: string
+      description: |
+        The Zephyr sensor_channel enum identifier for the current channel,
+        without the SENSOR_CHAN_ prefix. For example, refer to the
+        accelelerometer vector as "ACCEL_XYZ".
+        If not set, this channel will be associated with a private channel 
+        with number SENSOR_CHAN_PRIV_START + its BHY2 index.
+    scale-factor:
+      type: string
+      description: |
+        Override the default channel-specific scale factor that is applied
+        to the raw sensor data to obtain the sensor data in the desired unit.
+    sampling-rate:
+      type: int
+      default: 0
+      description: |
+        The rate at which the sensor data is sampled, in Hz. If a rate lower
+        than 1 Hz is desired, use the sampling-interval property instead.
+        If neither is set, the sensor will be disabled.
+    sampling-interval:
+      type: int
+      default: 0
+      description: |
+        The interval at which the sensor data is sampled, in seconds. If an
+        interval smaller than 1 second is desired, use the sampling-rate
+        property instead. If neither is set, the sensor will be disabled.
+    sampling-latency-ms:
+      type: int
+      default: 0
+      description: |
+        The maximum delay between the time the sensor data is sampled and the
+        time it is available to the host, in milliseconds. Setting a non-zero
+        latency improves throughput by allowing the sensor hub to batch
+        multiple samples before sending them to the host.
