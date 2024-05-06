@@ -118,11 +118,27 @@ const void *llext_find_sym(const struct llext_symtable *sym_table, const char *s
 {
 	if (sym_table == NULL) {
 		/* Built-in symbol table */
+#ifdef CONFIG_LLEXT_EXPORT_BUILTINS_BY_SLID
+		/* 'sym_name' is actually a SLID to search for */
+		uintptr_t slid = (uintptr_t)sym_name;
+
+		/* TODO: perform a binary search instead of linear.
+		 * Note that - as of writing - the llext_const_symbol_area
+		 * section is sorted in ascending SLID order.
+		 * (see scripts/build/llext_prepare_exptab.py)
+		 */
+		STRUCT_SECTION_FOREACH(llext_const_symbol, sym) {
+			if (slid == sym->slid) {
+				return sym->addr;
+			}
+		}
+#else
 		STRUCT_SECTION_FOREACH(llext_const_symbol, sym) {
 			if (strcmp(sym->name, sym_name) == 0) {
 				return sym->addr;
 			}
 		}
+#endif
 	} else {
 		/* find symbols in module */
 		for (size_t i = 0; i < sym_table->sym_cnt; i++) {
@@ -825,8 +841,14 @@ static int llext_link(struct llext_loader *ldr, struct llext *ext, bool do_local
 				link_addr = 0;
 			} else if (sym.st_shndx == SHN_UNDEF) {
 				/* If symbol is undefined, then we need to look it up */
-				link_addr = (uintptr_t)llext_find_sym(NULL, name);
+#ifdef CONFIG_LLEXT_EXPORT_BUILTINS_BY_SLID
+				/* Search using the SLID stashed in st_value by build script */
+				const char * const mrsh_slid = (const char *)sym.st_value;
 
+				link_addr = (uintptr_t)llext_find_sym(NULL, mrsh_slid);
+#else
+				link_addr = (uintptr_t)llext_find_sym(NULL, name);
+#endif
 				if (link_addr == 0) {
 					LOG_ERR("Undefined symbol with no entry in "
 						"symbol table %s, offset %zd, link section %d",

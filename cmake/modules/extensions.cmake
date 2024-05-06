@@ -5421,12 +5421,26 @@ function(add_llext_target target_name)
     COMMAND_EXPAND_LISTS
   )
 
+  # LLEXT ELF processing for importing via SLID
+  # This command must be executed first in the packaging process.
+  if (CONFIG_LLEXT_EXPORT_BUILTINS_BY_SLID)
+    set(slid_inject_cmd
+      ${PYTHON_EXECUTABLE}
+      ${ZEPHYR_BASE}/scripts/build/llext_inject_slids.py
+      --elf-file ${llext_pkg_input}
+      -vvv
+    )
+  else()
+    set(slid_inject_cmd ${CMAKE_COMMAND} -E true)
+  endif()
+
   # Type-specific packaging of the built binary file into an .llext file
   if(CONFIG_LLEXT_TYPE_ELF_OBJECT)
 
     # No packaging required, simply copy the object file
     add_custom_command(
       OUTPUT ${llext_pkg_output}
+      COMMAND ${slid_inject_cmd}
       COMMAND ${CMAKE_COMMAND} -E copy ${llext_pkg_input} ${llext_pkg_output}
       DEPENDS ${llext_proc_target} ${llext_pkg_input}
     )
@@ -5437,6 +5451,7 @@ function(add_llext_target target_name)
     # (using strip in this case would remove _all_ symbols)
     add_custom_command(
       OUTPUT ${llext_pkg_output}
+      COMMAND ${slid_inject_cmd}
       COMMAND $<TARGET_PROPERTY:bintools,elfconvert_command>
               $<TARGET_PROPERTY:bintools,elfconvert_flag>
               $<TARGET_PROPERTY:bintools,elfconvert_flag_section_remove>.xt.*
@@ -5451,6 +5466,7 @@ function(add_llext_target target_name)
     # Need to strip the shared library of some sections
     add_custom_command(
       OUTPUT ${llext_pkg_output}
+      COMMAND ${slid_inject_cmd}
       COMMAND $<TARGET_PROPERTY:bintools,strip_command>
               $<TARGET_PROPERTY:bintools,strip_flag>
               $<TARGET_PROPERTY:bintools,strip_flag_remove_section>.xt.*

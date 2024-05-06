@@ -254,6 +254,8 @@ SECTIONS
 
 #include <zephyr/linker/rel-sections.ld>
 
+#include <zephyr/linker/rel-sections.ld>
+
     /DISCARD/ :
 	{
 	*(.plt)
