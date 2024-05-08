@@ -564,18 +564,61 @@ static int llext_copy_symbols(struct llext_loader *ldr, struct llext *ext)
 
 		if ((stt == STT_FUNC || stt == STT_OBJECT) &&
 		    stb == STB_GLOBAL && sect != SHN_UNDEF) {
-			enum llext_mem mem_idx = ldr->sect_map[sect];
 			const char *name = llext_string(ldr, ext, LLEXT_MEM_STRTAB, sym.st_name);
 
 			__ASSERT(j <= sym_tab->sym_cnt, "Miscalculated symbol number %u\n", j);
 
 			sym_tab->syms[j].name = name;
-			sym_tab->syms[j].addr = (void *)((uintptr_t)ext->mem[mem_idx] +
-							 sym.st_value -
-							 (ldr->hdr.e_type == ET_REL ? 0 :
-							  ldr->sects[mem_idx].sh_addr));
-			LOG_DBG("function symbol %d name %s addr %p",
-				j, name, sym_tab->syms[j].addr);
+			if (sect < LLEXT_MEM_BSS) {
+				enum llext_mem mem_idx = ldr->sect_map[sect];
+
+				sym_tab->syms[j].addr = (void *)((uintptr_t)ext->mem[mem_idx] +
+								 sym.st_value -
+								 (ldr->hdr.e_type == ET_REL ? 0 :
+								  ldr->sects[mem_idx].sh_addr));
+				LOG_DBG("%s symbol %d name %s addr %p sect %u idx %u",
+					stt == STT_FUNC ? "function" : "object", j, name,
+					sym_tab->syms[j].addr, sect, mem_idx);
+			} else {
+				/* Cannot use the map */
+				size_t shdr_pos = ldr->hdr.e_shoff + sect * ldr->hdr.e_shentsize;
+				elf_shdr_t shdr;
+
+				ret = llext_seek(ldr, shdr_pos);
+				if (ret != 0) {
+					LOG_ERR("failed seeking to position %zu\n", shdr_pos);
+					return ret;
+				}
+
+				ret = llext_read(ldr, &shdr, sizeof(elf_shdr_t));
+				if (ret != 0) {
+					LOG_ERR("failed reading section header at position %zu\n",
+						shdr_pos);
+					return ret;
+				}
+
+				uint8_t *addr = llext_peek(ldr, shdr.sh_offset);
+
+				if (!addr) {
+					/*
+					 * .peek() isn't available and we don't have a copy of this
+					 * section allocated. Error out.
+					 */
+					LOG_ERR("Cannot handle \"%s\" without section %s", name,
+						llext_string(ldr, ext, LLEXT_MEM_SHSTRTAB,
+							     shdr.sh_name));
+					return -EOPNOTSUPP;
+				}
+
+				sym_tab->syms[j].addr = addr + sym.st_value -
+					(ldr->hdr.e_type == ET_REL ? 0 :
+					 shdr.sh_addr);
+				LOG_DBG("%s symbol %d name %s addr %p sect %s #%u",
+					stt == STT_FUNC ? "function" : "object", j, name,
+					sym_tab->syms[j].addr,
+					llext_string(ldr, ext, LLEXT_MEM_SHSTRTAB, shdr.sh_name),
+					sect);
+			}
 			j++;
 		}
 	}
