@@ -697,10 +697,17 @@ static void llext_link_plt(struct llext_loader *ldr, struct llext *ext,
 
 		uint32_t stb = ELF_ST_BIND(sym_tbl.st_info);
 		const void *link_addr;
+		const char * name_or_slid;
 
 		switch (stb) {
 		case STB_GLOBAL:
-			link_addr = llext_find_sym(NULL, name);
+#ifdef CONFIG_LLEXT_EXPORT_BUILTINS_BY_SLID
+			/* Search using the SLID stashed in st_value by build script */
+			name_or_slid = (const char *)sym_tbl.st_value;
+#else
+			name_or_slid = name;
+#endif
+			link_addr = llext_find_sym(NULL, name_or_slid);
 
 			if (!link_addr)
 				link_addr = llext_find_sym(&ext->sym_tab, name);
@@ -841,14 +848,15 @@ static int llext_link(struct llext_loader *ldr, struct llext *ext, bool do_local
 				link_addr = 0;
 			} else if (sym.st_shndx == SHN_UNDEF) {
 				/* If symbol is undefined, then we need to look it up */
+				const char * name_or_slid;
+
 #ifdef CONFIG_LLEXT_EXPORT_BUILTINS_BY_SLID
 				/* Search using the SLID stashed in st_value by build script */
-				const char * const mrsh_slid = (const char *)sym.st_value;
-
-				link_addr = (uintptr_t)llext_find_sym(NULL, mrsh_slid);
+				name_or_slid = (const char *)sym.st_value;
 #else
-				link_addr = (uintptr_t)llext_find_sym(NULL, name);
+				name_or_slid = name;
 #endif
+				link_addr = (uintptr_t)llext_find_sym(NULL, name_or_slid);
 				if (link_addr == 0) {
 					LOG_ERR("Undefined symbol with no entry in "
 						"symbol table %s, offset %zd, link section %d",
