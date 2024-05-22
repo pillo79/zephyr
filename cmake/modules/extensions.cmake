@@ -5427,7 +5427,7 @@ function(add_llext_target target_name)
     set(slid_inject_cmd
       ${PYTHON_EXECUTABLE}
       ${ZEPHYR_BASE}/scripts/build/llext_inject_slids.py
-      --elf-file ${llext_pkg_input}
+      --elf-file ${llext_pkg_output}
       -vvv
     )
   else()
@@ -5440,8 +5440,8 @@ function(add_llext_target target_name)
     # No packaging required, simply copy the object file
     add_custom_command(
       OUTPUT ${llext_pkg_output}
-      COMMAND ${slid_inject_cmd}
       COMMAND ${CMAKE_COMMAND} -E copy ${llext_pkg_input} ${llext_pkg_output}
+      COMMAND ${slid_inject_cmd}
       DEPENDS ${llext_proc_target} ${llext_pkg_input}
     )
 
@@ -5451,13 +5451,13 @@ function(add_llext_target target_name)
     # (using strip in this case would remove _all_ symbols)
     add_custom_command(
       OUTPUT ${llext_pkg_output}
-      COMMAND ${slid_inject_cmd}
       COMMAND $<TARGET_PROPERTY:bintools,elfconvert_command>
               $<TARGET_PROPERTY:bintools,elfconvert_flag>
               $<TARGET_PROPERTY:bintools,elfconvert_flag_section_remove>.xt.*
               $<TARGET_PROPERTY:bintools,elfconvert_flag_infile>${llext_pkg_input}
               $<TARGET_PROPERTY:bintools,elfconvert_flag_outfile>${llext_pkg_output}
               $<TARGET_PROPERTY:bintools,elfconvert_flag_final>
+      COMMAND ${slid_inject_cmd}
       DEPENDS ${llext_proc_target} ${llext_pkg_input}
     )
 
@@ -5466,13 +5466,13 @@ function(add_llext_target target_name)
     # Need to strip the shared library of some sections
     add_custom_command(
       OUTPUT ${llext_pkg_output}
-      COMMAND ${slid_inject_cmd}
       COMMAND $<TARGET_PROPERTY:bintools,strip_command>
               $<TARGET_PROPERTY:bintools,strip_flag>
               $<TARGET_PROPERTY:bintools,strip_flag_remove_section>.xt.*
               $<TARGET_PROPERTY:bintools,strip_flag_infile>${llext_pkg_input}
               $<TARGET_PROPERTY:bintools,strip_flag_outfile>${llext_pkg_output}
               $<TARGET_PROPERTY:bintools,strip_flag_final>
+      COMMAND ${slid_inject_cmd}
       DEPENDS ${llext_proc_target} ${llext_pkg_input}
     )
 
