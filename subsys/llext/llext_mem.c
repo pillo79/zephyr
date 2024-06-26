@@ -73,7 +73,8 @@ static int llext_copy_section(struct llext_loader *ldr, struct llext *ext,
 
 	if (ldr->sects[mem_idx].sh_type != SHT_NOBITS &&
 	    IS_ENABLED(CONFIG_LLEXT_STORAGE_WRITABLE)) {
-		ext->mem[mem_idx] = llext_peek(ldr, ldr->sects[mem_idx].sh_offset);
+		ext->mem[mem_idx] = llext_peek(ldr, ldr->sects[mem_idx].sh_offset,
+					       ldr->sects[mem_idx].sh_size);
 		if (ext->mem[mem_idx]) {
 			llext_init_mem_part(ext, mem_idx, (uintptr_t)ext->mem[mem_idx],
 				ldr->sects[mem_idx].sh_size);

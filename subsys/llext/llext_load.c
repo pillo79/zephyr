@@ -105,12 +105,12 @@ static int llext_load_elf_data(struct llext_loader *ldr, struct llext *ext)
 		ldr->sect_map[i].offset = 0;
 	}
 
-	ldr->sect_hdrs = llext_peek(ldr, ldr->hdr.e_shoff);
+	size_t sect_hdrs_sz = ldr->sect_cnt * sizeof(ldr->sect_hdrs[0]);
+
+	ldr->sect_hdrs = llext_peek(ldr, ldr->hdr.e_shoff, sect_hdrs_sz);
 	if (ldr->sect_hdrs) {
 		ldr->sect_hdrs_on_heap = false;
 	} else {
-		size_t sect_hdrs_sz = ldr->sect_cnt * sizeof(ldr->sect_hdrs[0]);
-
 		ldr->sect_hdrs_on_heap = true;
 		ldr->sect_hdrs = llext_alloc(sect_hdrs_sz);
 		if (!ldr->sect_hdrs) {
@@ -509,7 +509,7 @@ static int llext_copy_symbols(struct llext_loader *ldr, struct llext *ext,
 				 * Be noisy about it, since this is addressing
 				 * data that was missed by llext_map_sections.
 				 */
-				base = llext_peek(ldr, shdr->sh_offset);
+				base = llext_peek(ldr, shdr->sh_offset, shdr->sh_size);
 				if (base) {
 					LOG_DBG("section %d peeked at %p", sect, base);
 				} else {
