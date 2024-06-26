@@ -67,10 +67,11 @@ struct llext_loader {
 	 *
 	 * @param[in] ldr Loader
 	 * @param[in] pos Position to obtain a pointer to
+	 * @param[in] len Length of the buffer to peek
 	 *
 	 * @retval pointer into the buffer
 	 */
-	void *(*peek)(struct llext_loader *ldr, size_t pos);
+	void *(*peek)(struct llext_loader *ldr, size_t pos, size_t len);
 
 	/** @cond ignore */
 	elf_ehdr_t hdr;
@@ -92,10 +93,10 @@ static inline int llext_seek(struct llext_loader *l, size_t pos)
 	return l->seek(l, pos);
 }
 
-static inline void *llext_peek(struct llext_loader *l, size_t pos)
+static inline void *llext_peek(struct llext_loader *l, size_t pos, size_t len)
 {
 	if (l->peek) {
-		return l->peek(l, pos);
+		return l->peek(l, pos, len);
 	}
 
 	return NULL;
