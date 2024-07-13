@@ -245,8 +245,9 @@ int llext_link(struct llext_loader *ldr, struct llext *ext, bool do_local)
 		enum llext_mem mem_idx = ldr->sect_map[shdr->sh_info].mem_idx;
 
 		if (mem_idx == LLEXT_MEM_COUNT) {
-			LOG_ERR("Section %d not loaded in any memory region", shdr->sh_info);
-			return -ENOEXEC;
+			LOG_WRN("Section %d not loaded in any memory region", shdr->sh_info);
+			//return -ENOEXEC;
+			continue;
 		}
 
 		sect_base = (uintptr_t)llext_loaded_sect_ptr(ldr, ext, shdr->sh_info);

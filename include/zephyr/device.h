@@ -12,6 +12,7 @@
 #include <zephyr/devicetree.h>
 #include <zephyr/init.h>
 #include <zephyr/linker/sections.h>
+#include <zephyr/llext/symbol.h>
 #include <zephyr/pm/state.h>
 #include <zephyr/sys/device_mmio.h>
 #include <zephyr/sys/iterable_sections.h>
@@ -1047,6 +1048,8 @@ device_get_dt_nodelabels(const struct device *dev)
 #define Z_DEVICE_SECTION_NAME(level, prio)                                     \
 	_CONCAT(INIT_LEVEL_ORD(level), _##prio)
 
+#define Z_DEVICE_NAME_EXPORT(name)                                 \
+	EXPORT_SYMBOL(name)
 /**
  * @brief Define a @ref device
  *
@@ -1064,13 +1067,14 @@ device_get_dt_nodelabels(const struct device *dev)
  * @param ... Optional dependencies, manually specified.
  */
 #define Z_DEVICE_BASE_DEFINE(node_id, dev_id, name, pm, data, config, level, prio, api, state,     \
-			     deps)                                                    \
+			     deps)                                                                 \
 	COND_CODE_1(DT_NODE_EXISTS(node_id), (), (static))                                         \
 	COND_CODE_1(Z_DEVICE_IS_MUTABLE(node_id), (), (const))                                     \
 	STRUCT_SECTION_ITERABLE_NAMED_ALTERNATE(                                                   \
 		device, COND_CODE_1(Z_DEVICE_IS_MUTABLE(node_id), (device_mutable), (device)),     \
 		Z_DEVICE_SECTION_NAME(level, prio), DEVICE_NAME_GET(dev_id)) =                     \
-		Z_DEVICE_INIT(name, pm, data, config, api, state, deps, node_id, dev_id)
+		Z_DEVICE_INIT(name, pm, data, config, api, state, deps, node_id, dev_id);          \
+	Z_DEVICE_NAME_EXPORT(DEVICE_NAME_GET(dev_id))
 
 /* deprecated device initialization levels */
 #define Z_DEVICE_LEVEL_DEPRECATED_EARLY                                        \
@@ -1168,7 +1172,7 @@ device_get_dt_nodelabels(const struct device *dev)
 			      (Z_DEVICE_DT_METADATA_DEFINE(node_id, dev_id);))))\
                                                                                 \
 	Z_DEVICE_BASE_DEFINE(node_id, dev_id, name, pm, data, config, level,    \
-		prio, api, state, Z_DEVICE_DEPS_NAME(dev_id));                   \
+		prio, api, state, Z_DEVICE_DEPS_NAME(dev_id));                  \
 	COND_CODE_1(DEVICE_DT_DEFER(node_id),                                   \
 		    (Z_DEFER_DEVICE_INIT_ENTRY_DEFINE(node_id, dev_id,          \
 						      init_fn)),                \

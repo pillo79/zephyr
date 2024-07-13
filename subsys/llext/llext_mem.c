@@ -33,6 +33,8 @@ K_HEAP_DEFINE(llext_heap, CONFIG_LLEXT_HEAP_SIZE * 1024);
 static void llext_init_mem_part(struct llext *ext, enum llext_mem mem_idx,
 			uintptr_t start, size_t len)
 {
+	const char *attr_str = "";
+
 #ifdef CONFIG_USERSPACE
 	if (mem_idx < LLEXT_MEM_PARTITIONS) {
 		ext->mem_parts[mem_idx].start = start;
@@ -41,21 +43,25 @@ static void llext_init_mem_part(struct llext *ext, enum llext_mem mem_idx,
 		switch (mem_idx) {
 		case LLEXT_MEM_TEXT:
 			ext->mem_parts[mem_idx].attr = K_MEM_PARTITION_P_RX_U_RX;
+			attr_str = " (rx)";
 			break;
 		case LLEXT_MEM_DATA:
 		case LLEXT_MEM_BSS:
 			ext->mem_parts[mem_idx].attr = K_MEM_PARTITION_P_RW_U_RW;
+			attr_str = " (rw)";
 			break;
 		case LLEXT_MEM_RODATA:
 			ext->mem_parts[mem_idx].attr = K_MEM_PARTITION_P_RO_U_RO;
+			attr_str = " (ro)";
 			break;
 		default:
+			attr_str = " (not set)";
 			break;
 		}
 	}
 #endif
 
-	LOG_DBG("region %d: start 0x%zx, size %zd", mem_idx, (size_t)start, len);
+	LOG_DBG("region %d%s: start 0x%zx, size %zd", mem_idx, attr_str, (size_t)start, len);
 }
 
 static int llext_copy_section(struct llext_loader *ldr, struct llext *ext,

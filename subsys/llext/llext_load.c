@@ -253,9 +253,11 @@ static int llext_map_sections(struct llext_loader *ldr, struct llext *ext)
 			memcpy(region, shdr, sizeof(*region));
 		} else {
 			/* Make sure this section is compatible with the region */
-			if (shdr->sh_flags != region->sh_flags) {
-				LOG_ERR("Unsupported section flags for %s (region %d)",
-					name, mem_idx);
+			if ((shdr->sh_flags & 7) != (region->sh_flags & 7)) {
+				LOG_ERR("Unsupported section flags for %s (region %d)"
+					": 0x%zx != 0x%zx",
+					name, mem_idx,
+					(size_t)shdr->sh_flags, (size_t)region->sh_flags);
 				return -ENOEXEC;
 			}
 
@@ -330,11 +332,12 @@ static int llext_map_sections(struct llext_loader *ldr, struct llext *ext)
 			}
 
 			/*
-			 * Test file offsets. BSS sections store no
-			 * data in the file and must not be included
-			 * in checks to avoid false positives.
+			 * Test file offsets. Avoid the following false positives:
+			 * - BSS sections store no data in the file
+			 * - EXPORT section may be embedded in RODATA or DATA
 			 */
-			if (i == LLEXT_MEM_BSS || j == LLEXT_MEM_BSS) {
+			if (i == LLEXT_MEM_BSS || j == LLEXT_MEM_BSS ||
+			    i == LLEXT_MEM_EXPORT || j == LLEXT_MEM_EXPORT) {
 				continue;
 			}
 
@@ -404,7 +407,7 @@ static int llext_count_export_syms(struct llext_loader *ldr, struct llext *ext)
 
 		name = llext_string(ldr, ext, LLEXT_MEM_STRTAB, sym.st_name);
 
-		if ((stt == STT_FUNC || stt == STT_OBJECT) && stb == STB_GLOBAL) {
+		if (stb == STB_GLOBAL || stb == STB_WEAK) {
 			LOG_DBG("function symbol %d, name %s, type tag %d, bind %d, sect %d",
 				i, name, stt, stb, sect);
 			ext->sym_tab.sym_cnt++;
