@@ -227,6 +227,12 @@ static int llext_map_sections(struct llext_loader *ldr, struct llext *ext)
 
 		name = llext_string(ldr, ext, LLEXT_MEM_SHSTRTAB, shdr->sh_name);
 
+		if (ldr->sect_map[i].mem_idx != LLEXT_MEM_COUNT) {
+			LOG_DBG("section %d name %s already mapped to region %d",
+				i, name, ldr->sect_map[i].mem_idx);
+			continue;
+		}
+
 		/* Identify the section type by its flags */
 		enum llext_mem mem_idx;
 
