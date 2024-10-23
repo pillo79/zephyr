@@ -55,7 +55,9 @@ LOG_MODULE_REGISTER(flash_mcux);
 
 #define SOC_NV_FLASH_NODE DT_INST(0, soc_nv_flash)
 
-#if defined(CONFIG_CHECK_BEFORE_READING)  && !defined(CONFIG_SOC_LPC55S36)
+#if defined(CONFIG_CHECK_BEFORE_READING)
+
+#ifndef CONFIG_SOC_LPC55S36
 #define FMC_STATUS_FAIL	FLASH_INT_CLR_ENABLE_FAIL_MASK
 #define FMC_STATUS_ERR	FLASH_INT_CLR_ENABLE_ERR_MASK
 #define FMC_STATUS_DONE	FLASH_INT_CLR_ENABLE_DONE_MASK
@@ -91,6 +93,7 @@ static uint32_t get_cmd_status(uint32_t cmd, uint32_t addr, size_t len)
 
 	return status;
 }
+#endif /* ! CONFIG_SOC_LPC55S36 */
 
 /* This function prevents erroneous reading. Some ECC enabled devices will
  * crash when reading an erased or wrongly programmed area.
@@ -102,6 +105,7 @@ static status_t is_area_readable(uint32_t addr, size_t len)
 
 	key = irq_lock();
 
+#ifndef CONFIG_SOC_LPC55S36
 	/* Check if the are is correctly programmed and can be read. */
 	status = get_cmd_status(FMC_CMD_MARGIN_CHECK, addr, len);
 	if (status & FMC_STATUS_FAILURES) {
@@ -110,18 +114,42 @@ static status_t is_area_readable(uint32_t addr, size_t len)
 		if (!(status & FMC_STATUS_FAIL)) {
 			LOG_DBG("read request on erased addr:0x%08x size:%d",
 				addr, len);
-			irq_unlock(key);
-			return -ENODATA;
+			status = -ENODATA;
+		} else {
+			LOG_DBG("read request error for addr:0x%08x size:%d",
+				addr, len);
+			status = -EIO;
 		}
-		LOG_DBG("read request error for addr:0x%08x size:%d",
-			addr, len);
-		irq_unlock(key);
-		return -EIO;
+	} else {
+		/* The area is readable. */
+		status = 0;
 	}
+#else
+	/* Check whether the Flash is erased ("addr" and "len" must be word-aligned). */
+	status = FLASH_VerifyErase(&priv->config,
+				   ROUND_DOWN(addr, 4),
+				   ROUND_DOWN(addr + len + 3, 4) - ROUND_DOWN(addr, 4));
+	switch (status) {
+	case kStatus_FLASH_Success:
+		/* The area is erased. */
+		LOG_DBG("read request on erased addr:0x%08x size:%d", addr, len);
+		status = -ENODATA;
+		break;
+	case kStatus_FLASH_CommandFailure:
+		/* The erase check failed, but the area contains valid data. */
+		status = 0;
+		break;
+	default:
+		/* The area is not readable. */
+		LOG_DBG("read request error for addr:0x%08x size:%d", addr, len);
+		status = -EIO;
+		break;
+	}
+#endif /* ! CONFIG_SOC_LPC55S36 */
 
 	irq_unlock(key);
 
-	return 0;
+	return status;
 }
 #endif /* CONFIG_CHECK_BEFORE_READING && ! CONFIG_SOC_LPC55S36 */
 
@@ -205,35 +233,19 @@ static int flash_mcux_read(const struct device *dev, off_t offset,
 	addr = offset + priv->pflash_block_base;
 
 #ifdef CONFIG_CHECK_BEFORE_READING
-  #ifdef CONFIG_SOC_LPC55S36
-	/* Validates the given address range is loaded in the flash hiding region. */
-	rc = FLASH_IsFlashAreaReadable(&priv->config, addr, len);
-	if (rc != kStatus_FLASH_Success) {
-		rc = -EIO;
-	} else {
-		/* Check whether the flash is erased ("len" and "addr" must be word-aligned). */
-		rc = FLASH_VerifyErase(&priv->config, ((addr + 0x3) & ~0x3),  ((len + 0x3) & ~0x3));
-		if (rc == kStatus_FLASH_Success) {
-			rc = -ENODATA;
-		} else {
-			rc = 0;
-		}
-	}
-  #else
 	rc = is_area_readable(addr, len);
-  #endif /* CONFIG_SOC_LPC55S36 */
-#endif /* CONFIG_CHECK_BEFORE_READING */
-
 	if (!rc) {
 		memcpy(data, (void *) addr, len);
-	}
-#ifdef CONFIG_CHECK_BEFORE_READING
-	else if (rc == -ENODATA) {
+	} else if (rc == -ENODATA) {
 		/* Erased area, return dummy data as an erased page. */
 		memset(data, 0xFF, len);
 		rc = 0;
 	}
-#endif
+#else /* CONFIG_CHECK_BEFORE_READING */
+	/* No safety checks, directly copy the memory mapped data. */
+	memcpy(data, (void *) addr, len);
+#endif /* CONFIG_CHECK_BEFORE_READING */
+
 	return rc;
 }
 
