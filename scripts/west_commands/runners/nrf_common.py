@@ -307,6 +307,8 @@ class NrfBinaryRunner(ZephyrBinaryRunner):
     def _get_core(self):
         if self.family in ('nrf54h', 'nrf92'):
             if (self.build_conf.getboolean('CONFIG_SOC_NRF54H20_CPUAPP') or
+                self.build_conf.getboolean('CONFIG_SOC_NRF54H20_CPUFLPR') or
+                self.build_conf.getboolean('CONFIG_SOC_NRF54H20_CPUPPR') or
                 self.build_conf.getboolean('CONFIG_SOC_NRF9280_CPUAPP')):
                 return 'Application'
             if (self.build_conf.getboolean('CONFIG_SOC_NRF54H20_CPURAD') or
@@ -418,11 +420,12 @@ class NrfBinaryRunner(ZephyrBinaryRunner):
 
 
     def reset_target(self):
+        sw_reset = "RESET_HARD" if self.family in ('nrf54h', 'nrf92') else "RESET_SYSTEM"
         # Default to soft reset on nRF52 only, because ICs in these series can
         # reconfigure the reset pin as a regular GPIO
-        default = "RESET_SYSTEM" if self.family == 'nrf52' else "RESET_PIN"
-        kind = ("RESET_SYSTEM" if self.softreset else "RESET_PIN" if
-               self.pinreset else default)
+        default = sw_reset if self.family == 'nrf52' else "RESET_PIN"
+        kind = (sw_reset if self.softreset else "RESET_PIN" if
+                self.pinreset else default)
 
         if self.family == 'nrf52' and kind == "RESET_PIN":
             # Write to the UICR enabling nRESET in the corresponding pin
