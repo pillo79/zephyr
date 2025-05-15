@@ -1,0 +1,43 @@
+/*
+ * Copyright 2025 Arduino SA
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * The arduino-header-r3 binding has always used a pin numbering scheme which
+ * is different from the one used in actual Arduino sketches. This file keeps
+ * the old numbering scheme for backward compatibility for boards that have
+ * defined the new "arduino_uno_header" node.
+ */
+
+/ {
+	arduino_header: arduino_connector {
+		compatible = "arduino-header-r3";
+		#gpio-cells = <2>;
+		gpio-map-mask = <0xffffffff 0xffffffc0>;
+		gpio-map-pass-thru = <0 0x3f>;
+		gpio-map = <&arduino_uno_header 16 0>,	/* A0 */
+			   <&arduino_uno_header 17 0>,	/* A1 */
+			   <&arduino_uno_header 18 0>,	/* A2 */
+			   <&arduino_uno_header 19 0>,	/* A3 */
+			   <&arduino_uno_header 20 0>,	/* A4 */
+			   <&arduino_uno_header 21 0>,	/* A5 */
+			   <&arduino_uno_header  0 0>,	/* D0 */
+			   <&arduino_uno_header  1 0>,	/* D1 */
+			   <&arduino_uno_header  2 0>,	/* D2 */
+			   <&arduino_uno_header  3 0>,	/* D3 */
+			   <&arduino_uno_header  4 0>,	/* D4 */
+			   <&arduino_uno_header  5 0>,	/* D5 */
+			   <&arduino_uno_header  6 0>,	/* D6 */
+			   <&arduino_uno_header  7 0>,	/* D7 */
+			   <&arduino_uno_header  8 0>,	/* D8 */
+			   <&arduino_uno_header  9 0>,	/* D9 */
+			   <&arduino_uno_header 10 0>,	/* D10 */
+			   <&arduino_uno_header 11 0>,	/* D11 */
+			   <&arduino_uno_header 12 0>,	/* D12 */
+			   <&arduino_uno_header 13 0>,	/* D13 */
+			   <&arduino_uno_header 14 0>,	/* D14 */
+			   <&arduino_uno_header 15 0>;	/* D15 */
+	};
+};

@@ -3,7 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 description: |
-    GPIO pins exposed on Arduino Uno (R3) headers.
+    GPIO pins exposed on Arduino Uno (R3) headers using the legacy
+    numbering scheme. Deprecated in favor of the "arduino-uno-r3-header"
+    binding that is fully Arduino compatible.
 
     The Arduino Uno layout provides four headers, two each along
     opposite edges of the board.
@@ -22,27 +24,12 @@ description: |
 
     This binding provides a nexus mapping for 20 pins where parent pins 0
     through 5 correspond to A0 through A5, and parent pins 6 through 21
-    correspond to D0 through D15, as depicted below:
+    correspond to D0 through D15.
 
-                                 D15  21
-                                 D14  20
-                                 AREF -
-                                 GND  -
-        - N/C                    D13  19
-        - IOREF                  D12  18
-        - RESET                  D11  17
-        - 3V3                    D10  16
-        - 5V                     D9   15
-        - GND                    D8   14
-        - GND
-        - VIN                    D7   13
-                                 D6   12
-        0 A0                     D5   11
-        1 A1                     D4   10
-        2 A2                     D3    9
-        3 A3                     D2    8
-        4 A4                     D1    7
-        5 A5                     D0    6
+    This sequence is different with the one used in Arduino sketches, which
+    starts with the digital pins. The "arduino-uno-r3-header" binding provides
+    a mapping that is compatible with the Arduino numbering and should be used
+    instead.
 
 
 compatible: "arduino-header-r3"
