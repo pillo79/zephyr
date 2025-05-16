@@ -1,11 +1,13 @@
+# Copyright (c) 2019 Foundries.io
+# Copyright (C) 2019 Peter Bigot Consulting, LLC
 # Copyright (c) 2025 Arduino SA
 # SPDX-License-Identifier: Apache-2.0
 
 description: |
-    GPIO pins exposed on Arduino UNO (R3+) headers.
+    GPIO pins exposed on Arduino Uno (R3) headers.
 
-    The Arduino UNO R3 (and later) layout provides four headers, two each
-    along opposite edges of the board.
+    The Arduino Uno layout provides four headers, two each along
+    opposite edges of the board.
 
     Proceeding counter-clockwise:
     * An 8-pin Power Supply header.  No pins on this header are exposed
@@ -16,20 +18,15 @@ description: |
       signals labeled from D0 at the bottom D7 at the top;
     * A 10-pin header (opposite Power Supply).  This has six additional
       digital input signals labelled from D8 at the bottom through D13
-      towards the top, skipping two pins, then finishing with SDA and
-      SCL at the top.
+      towards the top, skipping two pins, then finishing with D14 and
+      D15 at the top.
 
-    This binding provides a nexus mapping for 22 pins whose numbering is
-    compatible with the one used by Arduino sketches:
+    This binding provides a nexus mapping for 20 pins where parent pins 0
+    through 15 correspond to D0 through D15, and parent pins 16 through 21
+    correspond to A0 through A5, as depicted below:
 
-    * parent pins 0 through 13 correspond to D0 through D13;
-    * parent pins 14 through 19 correspond to A0 through A5;
-    * parent pins 20 and 21 correspond to SDA and SCL.
-
-    This is depicted below:
-
-                                 SCL  21
-                                 SDA  20
+                                 D15  15
+                                 D14  14
                                  AREF -
                                  GND  -
         - N/C                    D13  13
@@ -41,16 +38,15 @@ description: |
         - GND
         - VIN                    D7    7
                                  D6    6
-       14 A0                     D5    5
-       15 A1                     D4    4
-       16 A2                     D3    3
-       17 A3                     D2    2
-       18 A4                     D1    1
-       19 A5                     D0    0
+       16 A0                     D5    5
+       17 A1                     D4    4
+       18 A2                     D3    3
+       19 A3                     D2    2
+       20 A4                     D1    1
+       21 A5                     D0    0
 
-    This is also the same numbering and layout of older Arduino UNO boards.
-    The only difference there is the last header is shorter and is missing
-    the dedicated SDA and SCL pins.
+    This binding provides a pin numbering that is compatible with the one used
+    in Arduino sketches.
 
 compatible: "arduino-uno-r3-header"
 

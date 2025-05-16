@@ -1,0 +1,69 @@
+# Copyright (c) 2025 Arduino SA
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+    GPIO pins exposed on Arduino DUE and Arduino MEGA headers.
+
+    The Arduino DUE layout extends the Arduino UNO layout from the bottom,
+    with two very long vertical headers plus a double-row horizontal header.
+    It is designed to keep mechanical compatibility with the Arduino UNO
+    layout, while adding more GPIO pins.
+    
+    The vertical headers have this numbering:
+
+                                 SCL  xxx
+                                 SDA  xxx
+                                 AREF -
+                                 GND  -
+        - N/C                    D13  13
+        - IOREF                  D12  12
+        - RESET                  D11  11
+        - 3V3                    D10  10
+        - 5V                     D9    9
+        - GND                    D8    8
+        - GND
+        - VIN                    D7    7
+                                 D6    6
+       54 A0                     D5    5
+       55 A1                     D4    4
+       56 A2                     D3    3
+       57 A3                     D2    2
+       58 A4                     D1    1
+       59 A5                     D0    0
+       60 A6                     
+       61 A7                     D14  14
+                                 D15  15
+       62 A8                     D16  16
+       63 A9                     D17  17
+       64 A10                    D18  18
+       65 A11                    D19  19
+       66 DAC2                   D20  20
+       67 DAC1                   D21  21
+       68 D68
+       69 D69
+
+    The horizontal header below those, when rotated counter-clockwise so that
+    the right side is closer to the edge of the board, has this numbering:
+
+               - +5V     +5V -
+              22 D22     D23 23
+              24 D24     D25 25
+              26 D26     D27 27
+              28 D28     D29 29
+              30 D30     D31 31
+              32 D32     D33 33
+              34 D34     D35 35
+              36 D36     D37 37
+              38 D38     D39 39
+              40 D40     D41 41
+              42 D42     D43 43
+              44 D44     D45 45
+              46 D46     D47 47
+              48 D48     D49 49
+              50 D50     D51 51
+              52 D52     D53 53
+               - GND     GND -
+
+compatible: "arduino-due-header"
+
+include: [gpio-nexus.yaml, base.yaml]
