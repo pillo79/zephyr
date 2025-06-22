@@ -127,6 +127,54 @@ static void dcmi_dma_callback(const struct device *dev, void *arg, uint32_t chan
 	HAL_DMA_IRQHandler(hdma);
 }
 
+#if defined(CONFIG_SOC_SERIES_STM32U585X)
+DMA_NodeTypeDef DCMINode1;
+DMA_QListTypeDef DCMIQueue;
+DMA_NodeTypeDef DCMINode2;
+
+int MX_DCMIQueue_Config(void)
+{
+	int ret = HAL_OK;
+	DMA_NodeConfTypeDef pNodeConfig;
+
+	/* Set node configuration ################################################*/
+	pNodeConfig.NodeType = DMA_GPDMA_2D_NODE;
+	pNodeConfig.Init.Request = GPDMA1_REQUEST_DCMI;
+	pNodeConfig.Init.BlkHWRequest = DMA_BREQ_SINGLE_BURST;
+	pNodeConfig.Init.Direction = DMA_PERIPH_TO_MEMORY;
+	pNodeConfig.Init.SrcInc = DMA_SINC_FIXED;
+	pNodeConfig.Init.DestInc = DMA_DINC_INCREMENTED;
+	pNodeConfig.Init.SrcDataWidth = DMA_SRC_DATAWIDTH_WORD;
+	pNodeConfig.Init.DestDataWidth = DMA_DEST_DATAWIDTH_WORD;
+	pNodeConfig.Init.SrcBurstLength = 1;
+	pNodeConfig.Init.DestBurstLength = 1;
+	pNodeConfig.Init.TransferAllocatedPort = DMA_SRC_ALLOCATED_PORT0|DMA_DEST_ALLOCATED_PORT0;
+	pNodeConfig.Init.TransferEventMode = DMA_TCEM_BLOCK_TRANSFER;
+	pNodeConfig.RepeatBlockConfig.RepeatCount = 1;
+	pNodeConfig.RepeatBlockConfig.SrcAddrOffset = 0;
+	pNodeConfig.RepeatBlockConfig.DestAddrOffset = 0;
+	pNodeConfig.RepeatBlockConfig.BlkSrcAddrOffset = 0;
+	pNodeConfig.RepeatBlockConfig.BlkDestAddrOffset = 0;
+	pNodeConfig.TriggerConfig.TriggerPolarity = DMA_TRIG_POLARITY_MASKED;
+	pNodeConfig.DataHandlingConfig.DataExchange = DMA_EXCHANGE_NONE;
+	pNodeConfig.DataHandlingConfig.DataAlignment = DMA_DATA_RIGHTALIGN_ZEROPADDED;
+	pNodeConfig.SrcAddress = 0;
+	pNodeConfig.DstAddress = 0;
+	pNodeConfig.DataSize = 0;
+
+	/* Build DCMINode1 Node */
+	ret |= HAL_DMAEx_List_BuildNode(&pNodeConfig, &DCMINode1);
+	ret |= HAL_DMAEx_List_InsertNode_Tail(&DCMIQueue, &DCMINode1);
+
+	/* Build DCMINode2 Node */
+	ret |= HAL_DMAEx_List_BuildNode(&pNodeConfig, &DCMINode2);
+	ret |= HAL_DMAEx_List_InsertNode_Tail(&DCMIQueue, &DCMINode2);
+
+	ret |= HAL_DMAEx_List_SetCircularModeConfig(&DCMIQueue, &DCMINode1);
+	return ret;
+}
+#endif
+
 static int stm32_dma_init(const struct device *dev)
 {
 	struct video_stm32_dcmi_data *data = dev->data;
@@ -162,7 +210,19 @@ static int stm32_dma_init(const struct device *dev)
 
 	/*** Configure the DMA ***/
 	/* Set the parameters to be configured */
-#if defined(GPDMA1) // GPDMA
+#if defined(CONFIG_SOC_SERIES_STM32U585X)
+	ret = MX_DCMIQueue_Config();
+	if (ret) {
+		LOG_ERR("DCMI Queue configuration failed, %d", ret);
+		return ret;
+	}
+
+	hdma.InitLinkedList.Priority = DMA_HIGH_PRIORITY;
+	hdma.InitLinkedList.LinkStepMode = DMA_LSM_FULL_EXECUTION;
+	hdma.InitLinkedList.LinkAllocatedPort = DMA_LINK_ALLOCATED_PORT1;
+	hdma.InitLinkedList.TransferEventMode = DMA_TCEM_LAST_LL_ITEM_TRANSFER;
+	hdma.InitLinkedList.LinkedListMode = DMA_LINKEDLIST_CIRCULAR;
+#elif defined(GPDMA1) // GPDMA
 	hdma.Init.Request		= GPDMA1_REQUEST_DCMI;
 	hdma.Init.BlkHWRequest		= DMA_BREQ_SINGLE_BURST;
 	hdma.Init.Direction		= DMA_PERIPH_TO_MEMORY;
@@ -195,10 +255,27 @@ static int stm32_dma_init(const struct device *dev)
 	/* Initialize DMA HAL */
 	__HAL_LINKDMA(&data->hdcmi, DMA_Handle, hdma);
 
+#if defined(CONFIG_SOC_SERIES_STM32U585X)
+	if (HAL_DMAEx_List_Init(&hdma) != HAL_OK) {
+		LOG_ERR("DCMI DMA List Init failed");
+		return -EIO;
+	}
+
+	if (HAL_DMA_ConfigChannelAttributes(&hdma, DMA_CHANNEL_NPRIV) != HAL_OK) {
+		LOG_ERR("DCMI DMA Config Channel Attributes failed");
+		return -EIO;
+	}
+
+	if (HAL_DMAEx_List_LinkQ(&hdma, &DCMIQueue)) {
+		LOG_ERR("DCMI DMA List Link failed");
+		return -EIO;
+	}
+#else
 	if (HAL_DMA_Init(&hdma) != HAL_OK) {
 		LOG_ERR("DCMI DMA Init failed");
 		return -EIO;
 	}
+#endif
 
 	return 0;
 }
@@ -498,8 +575,8 @@ static void video_stm32_dcmi_irq_config_func(const struct device *dev)
 			STM32_DMA_CHANNEL_CONFIG_BY_IDX(index, 0)),			\
 		.dest_data_size = STM32_DMA_CONFIG_##dest_dev##_DATA_SIZE(		\
 			STM32_DMA_CHANNEL_CONFIG_BY_IDX(index, 0)),			\
-		.source_burst_length = 1,       /* SINGLE transfer */			\
-		.dest_burst_length = 1,         /* SINGLE transfer */			\
+		.source_burst_length = 1,	/* SINGLE transfer */			\
+		.dest_burst_length = 1,		/* SINGLE transfer */			\
 		.channel_priority = STM32_DMA_CONFIG_PRIORITY(				\
 			STM32_DMA_CHANNEL_CONFIG_BY_IDX(index, 0)),			\
 		.dma_callback = dcmi_dma_callback,					\
