@@ -196,7 +196,7 @@ static int stm32_dma_init(const struct device *dev)
 
 	/*** Configure the DMA ***/
 	/* Set the parameters to be configured */
-#if CONFIG_SOC_STM32U585XX
+#if defined(CONFIG_SOC_STM32U585XX)
 	ret = MX_DCMIQueue_Config();
 	if (ret) {
 		LOG_ERR("DCMI Queue configuration failed, %d", ret);
@@ -208,6 +208,8 @@ static int stm32_dma_init(const struct device *dev)
 	hdma.InitLinkedList.LinkAllocatedPort = DMA_LINK_ALLOCATED_PORT1;
 	hdma.InitLinkedList.TransferEventMode = DMA_TCEM_LAST_LL_ITEM_TRANSFER;
 	hdma.InitLinkedList.LinkedListMode = DMA_LINKEDLIST_CIRCULAR;
+
+	hdma.Instance = LL_DMA_GET_CHANNEL_INSTANCE(config->dma.reg, config->dma.channel);
 #elif defined(GPDMA1) // GPDMA
 	hdma.Init.Request = GPDMA1_REQUEST_DCMI;
 	hdma.Init.BlkHWRequest = DMA_BREQ_SINGLE_BURST;
@@ -222,6 +224,8 @@ static int stm32_dma_init(const struct device *dev)
 	hdma.Init.TransferAllocatedPort = DMA_SRC_ALLOCATED_PORT0 | DMA_DEST_ALLOCATED_PORT0;
 	hdma.Init.TransferEventMode = DMA_TCEM_BLOCK_TRANSFER;
 	hdma.Init.Mode = DMA_NORMAL;
+
+	hdma.Instance = LL_DMA_GET_CHANNEL_INSTANCE(config->dma.reg, config->dma.channel);
 #else // standard DMA
 	hdma.Init.Request = DMA_REQUEST_DCMI;
 	hdma.Init.Direction = DMA_PERIPH_TO_MEMORY;
@@ -232,9 +236,11 @@ static int stm32_dma_init(const struct device *dev)
 	hdma.Init.Mode = DMA_CIRCULAR;
 	hdma.Init.Priority = DMA_PRIORITY_HIGH;
 	hdma.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+
+	hdma.Instance = __LL_DMA_GET_STREAM_INSTANCE(config->dma.reg,
+						config->dma.channel);
 #endif
 
-	hdma.Instance = LL_DMA_GET_CHANNEL_INSTANCE(config->dma.reg, config->dma.channel);
 
 	/* Initialize DMA HAL */
 	__HAL_LINKDMA(&data->hdcmi, DMA_Handle, hdma);
