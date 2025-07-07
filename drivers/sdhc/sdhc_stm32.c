@@ -188,8 +188,8 @@ static int sdhc_stm32_sd_init(const struct device *dev)
 		hsd->Init.BusWide = SDMMC_BUS_WIDE_1B;
 	}
 
-	if (HAL_SDIO_RegisterIdentifyCardCallback(
-			config->hsd, noop_identify_card_callback) != HAL_OK) {
+	if (HAL_SDIO_RegisterIdentifyCardCallback(config->hsd,
+						  noop_identify_card_callback) != HAL_OK) {
 		LOG_ERR("Register identify card callback failed");
 		return -EIO;
 	}
@@ -216,7 +216,7 @@ static int sdhc_stm32_activate(const struct device *dev)
 	}
 	if (DT_INST_NUM_CLOCKS(0) > 1) {
 		if (clock_control_configure(clk, (clock_control_subsys_t)&config->pclken[1],
-						NULL) != 0) {
+					    NULL) != 0) {
 			LOG_ERR("Failed to enable SDHC domain clock");
 			return -EIO;
 		}
@@ -292,7 +292,7 @@ static int sdhc_stm32_rw_extended(const struct device *dev, struct sdhc_command 
 
 	if (!IS_ENABLED(CONFIG_SDHC_STM32_POLLING_SUPPORT)) {
 		dev_data->sdio_dma_buf = k_aligned_alloc(CONFIG_SDHC_BUFFER_ALIGNMENT,
-							data->blocks * data->block_size);
+							 data->blocks * data->block_size);
 		if (dev_data->sdio_dma_buf == NULL) {
 			LOG_ERR("DMA buffer allocation failed");
 			return -ENOMEM;
@@ -302,22 +302,25 @@ static int sdhc_stm32_rw_extended(const struct device *dev, struct sdhc_command 
 	if (direction == SDIO_IO_WRITE) {
 		if (IS_ENABLED(CONFIG_SDHC_STM32_POLLING_SUPPORT)) {
 			res = HAL_SDIO_WriteExtended(config->hsd, &arg, data->data,
-							dev_data->total_transfer_bytes, data->timeout_ms);
+						     dev_data->total_transfer_bytes,
+						     data->timeout_ms);
 		} else {
 			memcpy(dev_data->sdio_dma_buf, data->data,
-				dev_data->total_transfer_bytes);
+			       dev_data->total_transfer_bytes);
 			sys_cache_data_flush_range(dev_data->sdio_dma_buf,
-							dev_data->total_transfer_bytes);
+						   dev_data->total_transfer_bytes);
 			res = HAL_SDIO_WriteExtended_DMA(config->hsd, &arg,
-							dev_data->sdio_dma_buf, dev_data->total_transfer_bytes);
+							 dev_data->sdio_dma_buf,
+							 dev_data->total_transfer_bytes);
 		}
 	} else {
 		if (IS_ENABLED(CONFIG_SDHC_STM32_POLLING_SUPPORT)) {
 			res = HAL_SDIO_ReadExtended(config->hsd, &arg, data->data,
-							dev_data->total_transfer_bytes, data->timeout_ms);
+						    dev_data->total_transfer_bytes,
+						    data->timeout_ms);
 		} else {
 			sys_cache_data_flush_range(dev_data->sdio_dma_buf,
-						dev_data->total_transfer_bytes);
+						   dev_data->total_transfer_bytes);
 			res = HAL_SDIO_ReadExtended_DMA(config->hsd, &arg, dev_data->sdio_dma_buf,
 							dev_data->total_transfer_bytes);
 		}
@@ -330,7 +333,8 @@ static int sdhc_stm32_rw_extended(const struct device *dev, struct sdhc_command 
 			return -ETIMEDOUT;
 		}
 		if (direction == SDIO_IO_READ) {
-			memcpy(data->data, dev_data->sdio_dma_buf, data->block_size * data->blocks);
+			memcpy(data->data, dev_data->sdio_dma_buf,
+			       data->block_size * data->blocks);
 		}
 		k_free(dev_data->sdio_dma_buf);
 	}
@@ -361,7 +365,7 @@ static int sdhc_stm32_switch_to_1_8v(const struct device *dev)
 }
 
 static int sdhc_stm32_request(const struct device *dev, struct sdhc_command *cmd,
-				  struct sdhc_data *data)
+			      struct sdhc_data *data)
 {
 	int res = 0;
 	uint32_t sdmmc_res = 0U;
@@ -410,7 +414,7 @@ static int sdhc_stm32_request(const struct device *dev, struct sdhc_command *cmd
 
 	case SDIO_SEND_OP_COND:
 		sdmmc_res = SDMMC_CmdSendOperationcondition(config->hsd->Instance, cmd->arg,
-								(uint32_t *)&cmd->response);
+							    (uint32_t *)&cmd->response);
 		break;
 
 	case SDIO_RW_DIRECT:
@@ -632,7 +636,7 @@ void sdhc_stm32_event_isr(const struct device *dev)
 
 	if (__HAL_SDIO_GET_FLAG(config->hsd, SDMMC_FLAG_DATAEND)) {
 		sys_cache_data_invd_range(data->sdio_dma_buf,
-					data->total_transfer_bytes);
+					  data->total_transfer_bytes);
 	}
 
 	if ((config->hsd->Instance->STA & SDMMC_STA_DCRCFAIL) != 0U) {
@@ -780,8 +784,8 @@ static int sdhc_stm32_pm_action(const struct device *dev, enum pm_device_action 
 	PM_DEVICE_DT_INST_DEFINE(index, sdhc_stm32_pm_action);	\
 	\
 	DEVICE_DT_INST_DEFINE(index, &sdhc_stm32_init, NULL, &sdhc_stm32_data_##index,	\
-				&sdhc_stm32_cfg_##index, POST_KERNEL, CONFIG_SDHC_INIT_PRIORITY,	\
-				&sdhc_stm32_api);	\
+				&sdhc_stm32_cfg_##index, POST_KERNEL,	\
+				CONFIG_SDHC_INIT_PRIORITY, &sdhc_stm32_api);	\
 	\
 	STM32_SDHC_IRQ_HANDLER(index)
 
