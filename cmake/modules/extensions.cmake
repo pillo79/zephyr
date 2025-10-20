@@ -164,11 +164,56 @@ function(zephyr_ld_options)
     target_ld_options(zephyr_interface INTERFACE ${ARGV})
 endfunction()
 
-# Getter functions for extracting build information from
+# Getter function for extracting build information from
 # zephyr_interface. Returning lists, and strings is supported, as is
 # requesting specific categories of build information (defines,
 # includes, options).
 #
+# Usage:
+#   zephyr_get_build_prop_for_lang(prop lang i [options])
+#
+# where:
+#   - 'prop' is the CMake target property to get
+#   - 'lang' is the language to filter for (C, CXX, ASM...)
+#   - 'i' is the output variable to write the result to
+#
+# Options:
+#  - STRIP_PREFIX: Omit the compiler flag prefix (-I, -D, etc.)
+#  - DELIMITER <delimiter>: Specify the output delimiter to use
+
+function(zephyr_get_build_prop_for_lang prop lang i)
+  set(options STRIP_PREFIX)
+  set(single_args DELIMITER)
+  cmake_parse_arguments(args "${options}" "${single_args}" "" ${ARGN})
+  if(args_UNPARSED_ARGUMENTS)
+    message(FATAL_ERROR "zephyr_get_build_prop_for_lang() given unknown "
+        "arguments: ${args_UNPARSED_ARGUMENTS}")
+  endif()
+  set_ifndef(args_DELIMITER "$<SEMICOLON>")
+
+  if(args_STRIP_PREFIX)
+    set(maybe_prefix "")
+  elseif(prop STREQUAL "INTERFACE_COMPILE_DEFINITIONS")
+    set(maybe_prefix "-D")
+  elseif(prop STREQUAL "INTERFACE_INCLUDE_DIRECTORIES")
+    set(maybe_prefix "-I")
+  elseif(prop STREQUAL "INTERFACE_SYSTEM_INCLUDE_DIRECTORIES")
+    set(maybe_prefix "-isystem")
+  else()
+    set(maybe_prefix "")
+  endif()
+
+  get_property(flags TARGET zephyr_interface PROPERTY ${prop})
+  process_flags(${lang} flags output_list)
+  string(REPLACE ";" "$<SEMICOLON>" genexp_output_list "${output_list}")
+
+  set(result_output_list "${maybe_prefix}$<JOIN:${genexp_output_list},${args_DELIMITER}${maybe_prefix}>")
+  set(maybe_result_output_list "$<$<BOOL:${genexp_output_list}>:${result_output_list}>")
+
+  set(${i} ${maybe_result_output_list} PARENT_SCOPE)
+endfunction()
+
+# Direct wrappers of the above function for specific build information.
 # The naming convention follows:
 # zephyr_get_${build_information}_for_lang${format}(lang x [STRIP_PREFIX])
 # Where
@@ -200,82 +245,36 @@ endfunction()
 # zephyr_get_include_directories_for_lang(ASM x)
 # writes "-Isome_dir;-Isome/other/dir" to x
 
-function(zephyr_get_include_directories_for_lang_as_string lang i)
-  zephyr_get_include_directories_for_lang(${lang} list_of_flags DELIMITER " " ${ARGN})
-  set(${i} ${str_of_flags} PARENT_SCOPE)
-endfunction()
+macro(generate_build_prop_wrappers item prop)
+  function(zephyr_get_${item}_for_lang lang i)
+    zephyr_get_build_prop_for_lang(${prop} ${lang} result_output_list ${ARGN})
+    set(${i} ${result_output_list} PARENT_SCOPE)
+  endfunction()
+  function(zephyr_get_${item}_for_lang_as_string lang i)
+    zephyr_get_build_prop_for_lang(${prop} ${lang} result_output_list DELIMITER " " ${ARGN})
+    set(${i} ${result_output_list} PARENT_SCOPE)
+  endfunction()
+endmacro()
 
-function(zephyr_get_system_include_directories_for_lang_as_string lang i)
-  zephyr_get_system_include_directories_for_lang(${lang} list_of_flags DELIMITER " " ${ARGN})
-  set(${i} ${str_of_flags} PARENT_SCOPE)
-endfunction()
+# NOTE: The ${ARGN} above are consumed by the macro expansion. By passing the
+# actual string "\${ARGN}" as an extra parameter to the wrapper invocation, it
+# the generated functions properly forward their arguments.
 
-function(zephyr_get_compile_definitions_for_lang_as_string lang i)
-  zephyr_get_compile_definitions_for_lang(${lang} list_of_flags DELIMITER " " ${ARGN})
-  set(${i} ${str_of_flags} PARENT_SCOPE)
-endfunction()
+# zephyr_get_include_directories_for_lang
+# zephyr_get_include_directories_for_lang_as_string
+generate_build_prop_wrappers(include_directories INTERFACE_INCLUDE_DIRECTORIES \${ARGN})
 
-function(zephyr_get_compile_options_for_lang_as_string lang i)
-  zephyr_get_compile_options_for_lang(${lang} list_of_flags DELIMITER " ")
-  set(${i} ${str_of_flags} PARENT_SCOPE)
-endfunction()
+# zephyr_get_system_include_directories
+# zephyr_get_system_include_directories_for_lang_as_string
+generate_build_prop_wrappers(system_include_directories INTERFACE_SYSTEM_INCLUDE_DIRECTORIES \${ARGN})
 
-function(zephyr_get_include_directories_for_lang lang i)
-  zephyr_get_parse_args(args ${ARGN})
-  get_property(flags TARGET zephyr_interface PROPERTY INTERFACE_INCLUDE_DIRECTORIES)
+# zephyr_get_compile_definitions_for_lang
+# zephyr_get_compile_definitions_for_lang_as_string
+generate_build_prop_wrappers(compile_definitions INTERFACE_COMPILE_DEFINITIONS \${ARGN})
 
-  process_flags(${lang} flags output_list)
-  string(REPLACE ";" "$<SEMICOLON>" genexp_output_list "${output_list}")
-
-  if(NOT ARGN)
-    set(result_output_list "-I$<JOIN:${genexp_output_list},$<SEMICOLON>-I>")
-  elseif(args_STRIP_PREFIX)
-    # The list has no prefix, so don't add it.
-    set(result_output_list ${output_list})
-  elseif(args_DELIMITER)
-    set(result_output_list "-I$<JOIN:${genexp_output_list},${args_DELIMITER}-I>")
-  endif()
-  set(${i} ${result_output_list} PARENT_SCOPE)
-endfunction()
-
-function(zephyr_get_system_include_directories_for_lang lang i)
-  zephyr_get_parse_args(args ${ARGN})
-  get_property(flags TARGET zephyr_interface PROPERTY INTERFACE_SYSTEM_INCLUDE_DIRECTORIES)
-
-  process_flags(${lang} flags output_list)
-  string(REPLACE ";" "$<SEMICOLON>" genexp_output_list "${output_list}")
-
-  set_ifndef(args_DELIMITER "$<SEMICOLON>")
-  set(result_output_list "$<$<BOOL:${genexp_output_list}>:-isystem$<JOIN:${genexp_output_list},${args_DELIMITER}-isystem>>")
-
-  set(${i} ${result_output_list} PARENT_SCOPE)
-endfunction()
-
-function(zephyr_get_compile_definitions_for_lang lang i)
-  zephyr_get_parse_args(args ${ARGN})
-  get_property(flags TARGET zephyr_interface PROPERTY INTERFACE_COMPILE_DEFINITIONS)
-
-  process_flags(${lang} flags output_list)
-  string(REPLACE ";" "$<SEMICOLON>" genexp_output_list "${output_list}")
-
-  set_ifndef(args_DELIMITER "$<SEMICOLON>")
-  set(result_output_list "-D$<JOIN:${genexp_output_list},${args_DELIMITER}-D>")
-
-  set(${i} ${result_output_list} PARENT_SCOPE)
-endfunction()
-
-function(zephyr_get_compile_options_for_lang lang i)
-  zephyr_get_parse_args(args ${ARGN})
-  get_property(flags TARGET zephyr_interface PROPERTY INTERFACE_COMPILE_OPTIONS)
-
-  process_flags(${lang} flags output_list)
-  string(REPLACE ";" "$<SEMICOLON>" genexp_output_list "${output_list}")
-
-  set_ifndef(args_DELIMITER "$<SEMICOLON>")
-  set(result_output_list "$<JOIN:${genexp_output_list},${args_DELIMITER}>")
-
-  set(${i} ${result_output_list} PARENT_SCOPE)
-endfunction()
+# zephyr_get_compile_options_for_lang
+# zephyr_get_compile_options_for_lang_as_string
+generate_build_prop_wrappers(compile_options INTERFACE_COMPILE_OPTIONS \${ARGN})
 
 # This function writes a dict to it's output parameter
 # 'return_dict'. The dict has information about the parsed arguments,
