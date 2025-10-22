@@ -2289,8 +2289,9 @@ if(CONFIG_LLEXT_EDK)
   set(llext_edk_file ${PROJECT_BINARY_DIR}/${CONFIG_LLEXT_EDK_NAME}.${llext_edk_extension})
 
   # TODO maybe generate flags for C CXX ASM
-  zephyr_get_compile_definitions_for_lang(C zephyr_defs)
   zephyr_get_compile_options_for_lang(C zephyr_flags)
+  zephyr_get_compile_definitions_for_lang(C zephyr_defs TARGET app GENEX)
+  zephyr_get_include_directories_for_lang(C zephyr_include_dirs TARGET app GENEX STRIP_PREFIX)
 
   # Filter out non LLEXT and LLEXT_EDK flags - and add required ones
   llext_filter_zephyr_flags(LLEXT_REMOVE_FLAGS ${zephyr_flags} llext_filt_flags)
@@ -2302,8 +2303,8 @@ if(CONFIG_LLEXT_EDK)
   list(APPEND llext_edk_cflags ${LLEXT_EDK_APPEND_FLAGS})
 
   build_info(llext-edk file PATH ${llext_edk_file})
-  build_info(llext-edk cflags VALUE ${llext_edk_cflags})
-  build_info(llext-edk include-dirs VALUE "$<TARGET_PROPERTY:zephyr_interface,INTERFACE_INCLUDE_DIRECTORIES>")
+  build_info(llext-edk cflags VALUE "${llext_edk_cflags}")
+  build_info(llext-edk include-dirs VALUE "${zephyr_include_dirs}")
 
   add_custom_command(
     OUTPUT ${llext_edk_file}
