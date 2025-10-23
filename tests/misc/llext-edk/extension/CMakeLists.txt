@@ -29,6 +29,7 @@ add_custom_command(
         ${PROJECT_SOURCE_DIR}/file2hex.py
         --file ${PROJECT_NAME}.llext
         > ${PROJECT_NAME}.inc
+    VERBATIM
 )
 
 add_custom_target(extension ALL DEPENDS ${PROJECT_BINARY_DIR}/${PROJECT_NAME}.llext)
