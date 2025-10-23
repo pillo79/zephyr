@@ -164,7 +164,7 @@ function(zephyr_ld_options)
     target_ld_options(zephyr_interface INTERFACE ${ARGV})
 endfunction()
 
-# Getter function for extracting build information from
+# Getter function for extracting build information from a target, by default
 # zephyr_interface. Returning lists, and strings is supported, as is
 # requesting specific categories of build information (defines,
 # includes, options).
@@ -180,16 +180,19 @@ endfunction()
 # Options:
 #  - STRIP_PREFIX: Omit the compiler flag prefix (-I, -D, etc.)
 #  - DELIMITER <delimiter>: Specify the output delimiter to use
+#  - TARGET <target>: Specify the target to get the property from
+#  - GENEX: Get lists at build time via CMake generator expressions
 
 function(zephyr_get_build_prop_for_lang prop lang i)
-  set(options STRIP_PREFIX)
-  set(single_args DELIMITER)
+  set(options STRIP_PREFIX GENEX)
+  set(single_args DELIMITER TARGET)
   cmake_parse_arguments(args "${options}" "${single_args}" "" ${ARGN})
   if(args_UNPARSED_ARGUMENTS)
     message(FATAL_ERROR "zephyr_get_build_prop_for_lang() given unknown "
         "arguments: ${args_UNPARSED_ARGUMENTS}")
   endif()
   set_ifndef(args_DELIMITER "$<SEMICOLON>")
+  set_ifndef(args_TARGET "zephyr_interface")
 
   if(args_STRIP_PREFIX)
     set(maybe_prefix "")
@@ -203,9 +206,13 @@ function(zephyr_get_build_prop_for_lang prop lang i)
     set(maybe_prefix "")
   endif()
 
-  get_property(flags TARGET zephyr_interface PROPERTY ${prop})
-  process_flags(${lang} flags output_list)
-  string(REPLACE ";" "$<SEMICOLON>" genexp_output_list "${output_list}")
+  if(args_GENEX)
+    set(genexp_output_list "$<TARGET_PROPERTY:${args_TARGET},${prop}>")
+  else()
+    get_property(flags TARGET ${args_TARGET} PROPERTY ${prop})
+    process_flags(${lang} flags output_list)
+    string(REPLACE ";" "$<SEMICOLON>" genexp_output_list "${output_list}")
+  endif()
 
   set(result_output_list "${maybe_prefix}$<JOIN:${genexp_output_list},${args_DELIMITER}${maybe_prefix}>")
   set(maybe_result_output_list "$<$<BOOL:${genexp_output_list}>:${result_output_list}>")
