@@ -42,25 +42,26 @@ extern "C" {
  * together into a single memory region.
  */
 enum llext_mem {
-	LLEXT_MEM_TEXT,         /**< Executable code */
-	LLEXT_MEM_DATA,         /**< Initialized data */
+	LLEXT_MEM_TEXT,	        /**< Executable code */
+	LLEXT_MEM_DATA,	        /**< Initialized data */
 	LLEXT_MEM_RODATA,       /**< Read-only data */
-	LLEXT_MEM_BSS,          /**< Uninitialized data */
+	LLEXT_MEM_BSS,	        /**< Uninitialized data */
+	LLEXT_MEM_LITERALS,     /**< Read-only data without relocations */
 	LLEXT_MEM_EXPORT,       /**< Exported symbol table */
 	LLEXT_MEM_SYMTAB,       /**< Symbol table */
 	LLEXT_MEM_STRTAB,       /**< Symbol name strings */
 	LLEXT_MEM_SHSTRTAB,     /**< Section name strings */
 	LLEXT_MEM_PREINIT,      /**< Array of early setup functions */
-	LLEXT_MEM_INIT,         /**< Array of setup functions */
-	LLEXT_MEM_FINI,         /**< Array of cleanup functions */
+	LLEXT_MEM_INIT,	        /**< Array of setup functions */
+	LLEXT_MEM_FINI,	        /**< Array of cleanup functions */
 
 	LLEXT_MEM_COUNT,        /**< Number of regions managed by LLEXT */
 };
 
 /** @cond ignore */
 
-/* Number of memory partitions used by LLEXT */
-#define LLEXT_MEM_PARTITIONS (LLEXT_MEM_BSS+1)
+/* Number of memory partitions used by LLEXT, including LITERALS when enabled */
+#define LLEXT_MEM_PARTITIONS (LLEXT_MEM_BSS + 1 + IS_ENABLED(CONFIG_LLEXT_LITERALS))
 
 struct llext_loader;
 /** @endcond */
@@ -70,6 +71,17 @@ struct llext_loader;
 
 /** Maximum number of dependency LLEXTs */
 #define LLEXT_MAX_DEPENDENCIES 8
+
+/**
+ * Constants with this symbol are placed in a separate ELF section so that when
+ * @kconfig{CONFIG_LLEXT_LITERALS} is enabled, LLEXT is able to optimize their
+ * memory usage.
+ */
+#ifdef CONFIG_LLEXT_LITERALS
+#define LLEXT_LITERAL Z_GENERIC_DOT_SECTION(llext_literals)
+#else
+#define LLEXT_LITERAL
+#endif
 
 /**
  * @brief Structure describing a linkable loadable extension

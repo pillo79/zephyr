@@ -108,6 +108,20 @@ config LLEXT_STORAGE_WRITABLE
 	  Select if LLEXT storage is writable, i.e. if extensions are stored in
 	  RAM and can be modified in place
 
+config LLEXT_LITERALS
+	bool "Support 'literal RODATA' region"
+	help
+	  When enabled, LLEXT splits read-only data sections in two groups:
+	  those that do not have relocations targeting them are placed into a
+	  dedicated LITERAL region, the others in the standard RODATA region.
+	  This allows to greatly optimize heap usage when loading LLEXTs that
+	  contain large constant data arrays by reusing the source buffer, if
+	  other conditions are met.
+
+	  Enable this only if the loaded ELFs are built in a way that ensures
+	  no overlaps between RODATA and LITERAL sections (-fdata-sections does
+	  not guarantee this).
+
 config LLEXT_EXPORT_DEVICES
 	bool "Export all DT devices to llexts"
 	select LLEXT_EXPORT_SYMBOL_GROUP_DEVICE

@@ -239,6 +239,27 @@ static int llext_map_sections(struct llext_loader *ldr, struct llext *ext,
 	int i, j;
 	const char *name;
 
+	if (IS_ENABLED(CONFIG_LLEXT_LITERALS)) {
+		/*
+		 * Reuse the 'offset' field, which will be computed at the end
+		 * of this function, to mark sections that have relocations
+		 * targeting them. This allows us to place RODATA sections that
+		 * do not include relocations in a separate LITERALS region,
+		 * which can remain in Flash.
+		 */
+
+		for (i = 0; i < ext->sect_cnt; ++i) {
+			elf_shdr_t *shdr = ext->sect_hdrs + i;
+
+			if (shdr->sh_type == SHT_REL || shdr->sh_type == SHT_RELA) {
+				/* Mark the target section as having relocations */
+				if (shdr->sh_info < ext->sect_cnt) {
+					ldr->sect_map[shdr->sh_info].offset = 1;
+				}
+			}
+		}
+	}
+
 	for (i = 0; i < ext->sect_cnt; ++i) {
 		elf_shdr_t *shdr = ext->sect_hdrs + i;
 
@@ -262,6 +283,9 @@ static int llext_map_sections(struct llext_loader *ldr, struct llext *ext,
 				mem_idx = LLEXT_MEM_TEXT;
 			} else if (shdr->sh_flags & SHF_WRITE) {
 				mem_idx = LLEXT_MEM_DATA;
+			} else if (IS_ENABLED(CONFIG_LLEXT_LITERALS) && !ldr->sect_map[i].offset) {
+				/* No relocations - can stay in Flash */
+				mem_idx = LLEXT_MEM_LITERALS;
 			} else {
 				mem_idx = LLEXT_MEM_RODATA;
 			}
@@ -521,16 +545,14 @@ static int llext_map_sections(struct llext_loader *ldr, struct llext *ext,
 		elf_shdr_t *shdr = ext->sect_hdrs + i;
 		enum llext_mem mem_idx = ldr->sect_map[i].mem_idx;
 
-		if (shdr->sh_type == SHT_REL || shdr->sh_type == SHT_RELA) {
-			enum llext_mem target_region = ldr->sect_map[shdr->sh_info].mem_idx;
-
-			if (target_region != LLEXT_MEM_COUNT) {
-				ldr->sects[target_region].sh_flags |= SHF_LLEXT_HAS_RELOCS;
-			}
-		}
-
 		if (mem_idx != LLEXT_MEM_COUNT) {
+			/* Save the relocation status to a permanent location */
+			if (ldr->sect_map[i].offset) {
+				ldr->sects[mem_idx].sh_flags |= SHF_LLEXT_HAS_RELOCS;
+			}
 			ldr->sect_map[i].offset = shdr->sh_offset - ldr->sects[mem_idx].sh_offset;
+		} else {
+			ldr->sect_map[i].offset = 0;
 		}
 	}
 
