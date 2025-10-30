@@ -43,6 +43,16 @@ const void *llext_loaded_sect_ptr(struct llext_loader *ldr, struct llext *ext, u
 {
 	enum llext_mem mem_idx = ldr->sect_map[sh_ndx].mem_idx;
 
+	if (ldr->sect_map[sh_ndx].flags & LLEXT_SECT_FLAG_DETACHED) {
+		elf_shdr_t *shdr = ext->sect_hdrs + sh_ndx;
+
+		if (ldr->storage == LLEXT_STORAGE_WRITABLE ||           /* writable storage       */
+		    (ldr->storage == LLEXT_STORAGE_PERSISTENT &&        /* || persistent storage  */
+		     !(shdr->sh_flags & SHF_WRITE))) {                  /*    && read-only region */
+			return llext_peek(ldr, shdr->sh_offset);
+		}
+	}
+
 	if (mem_idx == LLEXT_MEM_COUNT) {
 		return NULL;
 	}
