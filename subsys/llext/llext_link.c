@@ -571,7 +571,7 @@ int llext_link(struct llext_loader *ldr, struct llext *ext, const struct llext_l
 		for (i = 0; i < ext->sect_cnt; ++i) {
 			elf_shdr_t *shdr = ext->sect_hdrs + i;
 
-			if (ldr_parm->section_detached(shdr)) {
+			if (ldr->sect_map[i].flags & LLEXT_SECT_FLAG_DETACHED) {
 				void *base = llext_peek(ldr, shdr->sh_offset);
 
 				sys_cache_data_flush_range(base, shdr->sh_size);

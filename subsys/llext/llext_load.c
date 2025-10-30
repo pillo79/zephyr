@@ -116,6 +116,7 @@ static int llext_load_elf_data(struct llext_loader *ldr, struct llext *ext)
 	for (int i = 0; i < ext->sect_cnt; i++) {
 		ldr->sect_map[i].mem_idx = LLEXT_MEM_COUNT;
 		ldr->sect_map[i].offset = 0;
+		ldr->sect_map[i].flags = 0;
 	}
 
 	ext->sect_hdrs = (elf_shdr_t *)llext_peek(ldr, ldr->hdr.e_shoff);
@@ -312,6 +313,7 @@ static int llext_map_sections(struct llext_loader *ldr, struct llext *ext,
 		 * regions.
 		 */
 		if (ldr_parm->section_detached && ldr_parm->section_detached(shdr)) {
+			ldr->sect_map[i].flags |= LLEXT_SECT_FLAG_DETACHED;
 			continue;
 		}
 
@@ -681,7 +683,7 @@ static int llext_copy_symbols(struct llext_loader *ldr, struct llext *ext,
 			uintptr_t section_addr = shdr->sh_addr;
 
 			if (ldr_parm->pre_located &&
-			    (!ldr_parm->section_detached || !ldr_parm->section_detached(shdr))) {
+			    !(ldr->sect_map[shndx].flags & LLEXT_SECT_FLAG_DETACHED)) {
 				sym_tab->syms[j].addr = (uint8_t *)sym.st_value +
 					(ldr->hdr.e_type == ET_REL ? section_addr : 0);
 			} else {
