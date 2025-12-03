@@ -77,6 +77,7 @@ tests:
     extra_conf_files: ['no_mem_protection.conf']
     extra_configs:
       - CONFIG_LLEXT_STORAGE_WRITABLE=y
+      - CONFIG_LLEXT_LITERALS=y
   llext.writable_relocatable:
     arch_allow:
       - arm
