@@ -25,6 +25,7 @@
 	aliases {
 		led0 = &red_led;
 		led1 = &green_led;
+		led2 = &blue_led;
 	};
 
 	ext_memory: memory@90000000 {
