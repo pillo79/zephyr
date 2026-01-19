@@ -126,6 +126,11 @@ static int stm32_ltdc_set_pixel_format(const struct device *dev,
 		data->current_pixel_format = PIXEL_FORMAT_ARGB_8888;
 		data->current_pixel_size = 4u;
 		break;
+	case PIXEL_FORMAT_L_8:
+		err = HAL_LTDC_SetPixelFormat(&data->hltdc, LTDC_PIXEL_FORMAT_L8, 0);
+		data->current_pixel_format = PIXEL_FORMAT_L_8;
+		data->current_pixel_size = 1u;
+		break;
 	default:
 		return -ENOTSUP;
 	}
@@ -162,7 +167,8 @@ static void stm32_ltdc_get_capabilities(const struct device *dev,
 				     data->hltdc.LayerCfg[0].WindowY0;
 	capabilities->supported_pixel_formats = PIXEL_FORMAT_ARGB_8888 |
 					PIXEL_FORMAT_RGB_888 |
-					PIXEL_FORMAT_RGB_565;
+					PIXEL_FORMAT_BGR_565 |
+					PIXEL_FORMAT_L_8;
 	capabilities->screen_info = 0;
 
 	capabilities->current_pixel_format = data->current_pixel_format;
@@ -357,9 +363,6 @@ static int stm32_ltdc_init(const struct device *dev)
 	int err;
 	const struct display_stm32_ltdc_config *config = dev->config;
 	struct display_stm32_ltdc_data *data = dev->data;
-#if defined(CONFIG_SOC_SERIES_STM32N6X)
-	RIMC_MasterConfig_t rimc = {0};
-#endif
 
 	/* Configure and set display on/off GPIO */
 	if (config->disp_on_gpio.port) {
@@ -458,15 +461,6 @@ static int stm32_ltdc_init(const struct device *dev)
 	if (err != HAL_OK) {
 		return err;
 	}
-
-#if defined(CONFIG_SOC_SERIES_STM32N6X)
-	/* Configure RIF for LTDC layer 1 */
-	rimc.MasterCID = RIF_CID_1;
-	rimc.SecPriv = RIF_ATTRIBUTE_SEC | RIF_ATTRIBUTE_PRIV;
-	HAL_RIF_RIMC_ConfigMasterAttributes(RIF_MASTER_INDEX_LTDC1, &rimc);
-	HAL_RIF_RISC_SetSlaveSecureAttributes(RIF_RISC_PERIPH_INDEX_LTDCL1,
-					      RIF_ATTRIBUTE_SEC | RIF_ATTRIBUTE_PRIV);
-#endif
 
 	/* Disable layer 2, since it not used */
 	__HAL_LTDC_LAYER_DISABLE(&data->hltdc, LTDC_LAYER_2);
@@ -571,6 +565,11 @@ static DEVICE_API(display, stm32_ltdc_display_api) = {
 	/* frame buffer aligned to cache line width for optimal cache flushing */                  \
 	FRAME_BUFFER_SECTION static uint8_t __aligned(32)                                          \
 		frame_buffer_##inst[CONFIG_STM32_LTDC_FB_NUM * STM32_LTDC_FRAME_BUFFER_LEN(inst)];
+#endif
+
+/* LTDC supports RGB888 and RGB666 for output however only RGB_888 is supported for now */
+#if DT_INST_PROP(0, pixel_format) != PANEL_PIXEL_FORMAT_RGB_888
+#error "Only RGB_888 is supported as a LTDC output (aka panel or mipi-dsi input format)"
 #endif
 
 #define STM32_LTDC_DEVICE(inst)									\

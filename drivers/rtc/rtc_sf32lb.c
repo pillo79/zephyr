@@ -11,6 +11,7 @@
 #include <zephyr/device.h>
 #include <zephyr/drivers/rtc.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/sys/atomic.h>
 
 #include <register.h>
 
@@ -59,6 +60,7 @@ struct rtc_sf32lb_alarm_cb {
 struct rtc_sf32lb_data {
 #ifdef CONFIG_RTC_ALARM
 	struct rtc_sf32lb_alarm_cb alarm_cb;
+	ATOMIC_DEFINE(is_pending, 1);
 #endif
 };
 
@@ -79,7 +81,10 @@ static void rtc_irq_handler(const struct device *dev)
 
 	if (isr & RTC_ISR_ALRMF) {
 		sys_clear_bit(config->base + RTC_ISR, RTC_ISR_ALRMF_Pos);
+
 #ifdef CONFIG_RTC_ALARM
+		atomic_set_bit(&data->is_pending, 0);
+
 		if (data->alarm_cb.cb) {
 			data->alarm_cb.cb(dev, 0, data->alarm_cb.user_data);
 		}
@@ -123,7 +128,8 @@ static int rtc_sf32lb_set_time(const struct device *dev, const struct rtc_time *
 
 	tr = FIELD_PREP(RTC_TR_HT_Msk | RTC_TR_HU_Msk, bin2bcd(timeptr->tm_hour)) |
 	     FIELD_PREP(RTC_TR_MNT_Msk | RTC_TR_MNU_Msk, bin2bcd(timeptr->tm_min)) |
-	     FIELD_PREP(RTC_TR_ST_Msk | RTC_TR_SU_Msk, bin2bcd(timeptr->tm_sec));
+	     FIELD_PREP(RTC_TR_ST_Msk | RTC_TR_SU_Msk, bin2bcd(timeptr->tm_sec)) |
+	     FIELD_PREP(RTC_TR_SS_Msk, timeptr->tm_nsec * RC10K_DIVA_FRAC / 1000000000U);
 
 	rtc_sf32lb_enter_init_mode(dev);
 	sys_write32(tr, config->base + RTC_TIMER);
@@ -164,6 +170,7 @@ static int rtc_sf32lb_get_time(const struct device *dev, struct rtc_time *timept
 	timeptr->tm_hour = bcd2bin(FIELD_GET(RTC_TR_HT_Msk | RTC_TR_HU_Msk, reg));
 	timeptr->tm_min = bcd2bin(FIELD_GET(RTC_TR_MNT_Msk | RTC_TR_MNU_Msk, reg));
 	timeptr->tm_sec = bcd2bin(FIELD_GET(RTC_TR_ST_Msk | RTC_TR_SU_Msk, reg));
+	timeptr->tm_nsec = FIELD_GET(RTC_TR_SS_Msk, reg) * 1000000000U / RC10K_DIVA_FRAC;
 
 	reg = sys_read32(config->cfg + SYS_CFG_RTC_DR);
 
@@ -306,18 +313,13 @@ static int rtc_sf32lb_alarm_get_time(const struct device *dev, uint16_t id, uint
 
 static int rtc_sf32lb_alarm_is_pending(const struct device *dev, uint16_t id)
 {
-	const struct rtc_sf32lb_config *config = dev->config;
+	struct rtc_sf32lb_data *data = dev->data;
 
 	if (id != 0) {
 		return -EINVAL;
 	}
 
-	if (sys_test_bit(config->base + RTC_ISR, RTC_ISR_ALRMF_Pos)) {
-		sys_clear_bit(config->base + RTC_ISR, RTC_ISR_ALRMF_Pos);
-		return 1;
-	}
-
-	return 0;
+	return (int)atomic_test_and_clear_bit(&data->is_pending, 0);
 }
 
 static int rtc_sf32lb_alarm_set_callback(const struct device *dev, uint16_t id,

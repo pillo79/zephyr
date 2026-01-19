@@ -30,6 +30,14 @@
 		zephyr,memory-attr = <DT_MEM_ARM(ATTR_MPU_RAM)>;
 	};
 
+	ext_memory: memory@90000000 {
+		compatible = "zephyr,memory-region";
+		reg = <0x90000000 DT_SIZE_M(16)>; /* max addressable area */
+		zephyr,memory-region = "EXTMEM";
+		/* The ATTR_MPU_EXTMEM attribut causing a MPU FAULT */
+		zephyr,memory-attr = <( DT_MEM_ARM(ATTR_MPU_IO) )>;
+	};
+
 	aliases {
 		led0 = &red_led;
 		led1 = &green_led;
@@ -65,6 +73,10 @@
 	clock-frequency = <DT_FREQ_M(480)>;
 };
 
+&usart1_rx_pb7 {
+	bias-pull-up;
+};
+
 &usart1 {
 	status = "okay";
 	pinctrl-0 = <&usart1_tx_pa9 &usart1_rx_pb7>;
@@ -72,11 +84,19 @@
 	current-speed = <115200>;
 };
 
+&usart6_rx_pc7 {
+	bias-pull-up;
+};
+
 &usart6 {
 	status = "disabled";
 	pinctrl-0 = <&usart6_tx_pg14 &usart6_rx_pc7>;
 	pinctrl-names = "default";
 	current-speed = <115200>;
+};
+
+&uart4_rx_pi9 {
+	bias-pull-up;
 };
 
 &uart4 {
