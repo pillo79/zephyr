@@ -6,7 +6,7 @@ Arduino Core API
 Introduction
 ************
 
-The Arduino-Core-Zephyr module started as a `Google Summer of Code 2022 project`_
+The ArduinoCore-Zephyr module started as a `Google Summer of Code 2022 project`_
 to provide Arduino-style APIs for Zephyr RTOS applications. This module acts as an abstraction
 layer, allowing developers familiar with Arduino programming to leverage Zephyr's capabilities
 without having to learn entirely new APIs and libraries.
@@ -29,11 +29,11 @@ Key characteristics:
 * Defines interfaces for hardware-specific classes (e.g., ``HardwareSerial``, ``HardwareSPI``)
 * Shared across all modern Arduino platforms for consistency
 * See the `ArduinoCore-API README <https://github.com/arduino/ArduinoCore-API#arduinocore-api>`_ for implementation details
-* It is Licensed as GNU LESSER GENERAL PUBLIC LICENSE Version 2.1
+* It is Licensed as GNU LESSER GENERAL PUBLIC LICENSE, version 2.1 or later (LGPL-2.1+)
 
 **2. ArduinoCore-Zephyr (Zephyr-Specific Implementation)**
 
-The `Arduino-Core-Zephyr <https://github.com/zephyrproject-rtos/ArduinoCore-zephyr>`_ module
+The `ArduinoCore-Zephyr <https://github.com/zephyrproject-rtos/ArduinoCore-zephyr>`_ module
 provides the **Zephyr-specific implementation** of the Arduino API. This is where hardware-dependent
 Arduino functions are implemented using Zephyr's native APIs and drivers.
 
@@ -86,17 +86,8 @@ Adding the Arduino Core API to a Zephyr Project
 
       west update
 
-#. For Linux users, there's an ``install.sh`` script in the module that will automatically
-   link the ArduinoCore-API. If you can't use this script, follow the manual steps below.
-
-   .. note::
-
-      Skip the next step if the install.sh script succeeded. The next step is for Linux
-      users who may have a difference in where the module is installed or have some custom
-      Zephyr setup with custom paths.
-
-#. Complete the core setup by linking the API folder from the ArduinoCore-API repository into
-   the arduinocore-zephyr folder:
+#. Complete the core setup by downloading the Arduino API and copying it into the
+   ``cores/arduino/api`` folder of the module:
 
    .. code-block:: bash
 
@@ -168,7 +159,7 @@ For more details on using external libraries, see the `Arduino libraries documen
 References
 **********
 
-#. `Arduino-Core-Zephyr GitHub Repository`_
+#. `ArduinoCore-Zephyr GitHub Repository`_
 #. `ArduinoCore-API Repository`_
 #. `Golioth Article: Zephyr + Arduino: a Google Summer of Code story`_
 
@@ -177,7 +168,7 @@ References
 .. _Arduino Core API: https://github.com/zephyrproject-rtos/ArduinoCore-zephyr
 .. _board variants documentation: https://github.com/zephyrproject-rtos/ArduinoCore-zephyr/blob/main/documentation/variants.md
 .. _Arduino libraries documentation: https://github.com/zephyrproject-rtos/ArduinoCore-zephyr/blob/main/documentation/arduino_libs.md
-.. _Arduino-Core-Zephyr GitHub Repository: https://github.com/zephyrproject-rtos/ArduinoCore-zephyr
+.. _ArduinoCore-Zephyr GitHub Repository: https://github.com/zephyrproject-rtos/ArduinoCore-zephyr
 .. _ArduinoCore-API Repository: https://github.com/arduino/ArduinoCore-API
 .. _Google Summer of Code 2022 project: https://dhruvag2000.github.io/Blog-GSoC22/
 .. _Golioth Article\: Zephyr + Arduino\: a Google Summer of Code story: https://blog.golioth.io/zephyr-arduino-a-google-summer-of-code-story/
