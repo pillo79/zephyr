@@ -156,6 +156,25 @@ To use external Arduino libraries with your Zephyr project:
 
 For more details on using external libraries, see the `Arduino libraries documentation`_.
 
+Official Arduino downstream fork
+********************************
+
+Arduino maintains a `downstream fork of the ArduinoCore-Zephyr repository
+<https://github.com/arduino/ArduinoCore-zephyr>`_ that provides full integration with the Arduino
+ecosystem of tools, generating Arduino IDE-compatible core packages. This fork is maintained by
+Arduino and is intended for Arduino users who have no previous knowledge of Zephyr and just want to
+use their board within the Arduino ecosystem.
+
+To achieve this, the Arduino downstream fork provides an universal 'loader' Zephyr application that
+is pre-compiled for each supported board and distributed as a binary. When flashed to an actual
+board, this allows the Arduino IDE to upload user sketches which are then run by Zephyr via LLEXT.
+With this split, the loader is a static C application, while all C++ code in the core and APIs is
+linked with the user sketch by the IDE.
+
+In this way, basic Arduino users can benefit from Zephyr without having to learn about it at all,
+while users who dive into the workings of the core can start using Zephyr's native APIs and features
+and ultimately transition to building Zephyr applications directly.
+
 References
 **********
 
