@@ -77,25 +77,29 @@ class Snippet:
                 return [f'"{value}"']
             _err(f'unknown append variable: {variable}')
 
-        for variable, value in snippet_data.get('append', {}).items():
-            if (sysbuild is True and variable[0:3] == 'SB_') or \
-            (sysbuild is False and variable[0:3] != 'SB_'):
-                self.appends[variable] += append_value(variable, value)
-        for board, settings in snippet_data.get('boards', {}).items():
-            if board.startswith('/') and not board.endswith('/'):
-                _err(f"snippet file {pathobj}: board {board} starts with '/', so "
+        def check_key(kind: str, key: str):
+            '''Reject a half-open regular expression key.'''
+            if key.startswith('/') and not key.endswith('/'):
+                _err(f"snippet file {pathobj}: {kind} {key} starts with '/', so "
                      "it must end with '/' to use a regular expression")
+
+        def scoped_appends(settings: dict):
+            '''Filter the 'append' section for variables which belong to this pass.'''
+            return {variable: value
+                    for variable, value in settings.get('append', {}).items()
+                    if (variable[0:3] == 'SB_') == sysbuild}
+
+        for variable, value in scoped_appends(snippet_data).items():
+            self.appends[variable] += append_value(variable, value)
+        for board, settings in snippet_data.get('boards', {}).items():
+            check_key('board', board)
             for revision, appenddata in settings.get('revisions', {}).items():
-                for variable, value in appenddata.get('append', {}).items():
-                    if (sysbuild is True and variable[0:3] == 'SB_') or \
-                    (sysbuild is False and variable[0:3] != 'SB_'):
-                        self.board2appends[board][revision][variable] += \
-                            append_value(variable, value)
-            for variable, value in settings.get('append', {}).items():
-                if (sysbuild is True and variable[0:3] == 'SB_') or \
-                (sysbuild is False and variable[0:3] != 'SB_'):
-                    self.board2appends[board][""][variable] += \
+                for variable, value in scoped_appends(appenddata).items():
+                    self.board2appends[board][revision][variable] += \
                         append_value(variable, value)
+            for variable, value in scoped_appends(settings).items():
+                self.board2appends[board][""][variable] += \
+                    append_value(variable, value)
         self.description = snippet_data.get('description')
         self.dirs.append(pathobj.parent)
 
