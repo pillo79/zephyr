@@ -1203,7 +1203,13 @@ class TestPlan:
                                found_snippets[this_snippet].shield2appends:
                                 continue
 
-                            for this_board in found_snippets[this_snippet].board2appends:
+                            # A board section may hold plain appends, a nested
+                            # 'shields' section, or both, so look at the boards
+                            # of either mapping. Only the keys matter here.
+                            boards = {**found_snippets[this_snippet].board2appends,
+                                      **found_snippets[this_snippet].board2shield2appends}
+
+                            for this_board in boards:
                                 if this_board.startswith('/'):
                                     match = re.fullmatch(this_board[1:-1], plat.name)
                                     if match is not None:

@@ -298,7 +298,8 @@ devicetree overlay take precedence over the board's.
 
 When the same option is set twice, the section applied last wins. In
 increasing order of precedence, that is: the settings common to all builds,
-the board sections, the board revision sections, and the shield sections.
+the board sections, the board revision sections, the shield sections, the
+board and shield sections, and finally the board revision and shield sections.
 
 The shield is matched against its name, as declared in the shield's
 :file:`shield.yml` file.
@@ -345,3 +346,36 @@ overlay is applied only once, even if both shields are used in the same build.
    Shield sections work in :ref:`sysbuild <sysbuild>` builds as well, since
    ``SHIELD`` applies to the whole build. ``SB_EXTRA_CONF_FILE`` can therefore
    be used inside a shield section, just like in the other sections.
+
+Board and shield combinations
+=============================
+
+A ``shields`` key can also appear inside a board section, and inside a board
+revision section, for settings which need both:
+
+.. code-block:: yaml
+
+   name: foo
+   boards:
+     bar:
+       append:
+         EXTRA_DTC_OVERLAY_FILE: bar.overlay
+       shields:
+         baz_shield:
+           append:
+             EXTRA_DTC_OVERLAY_FILE: bar_baz_shield.overlay
+       revisions:
+         "0.7.0":
+           shields:
+             /baz_.*/:
+               append:
+                 EXTRA_CONF_FILE: bar_0_7_0_baz.conf
+
+The above example uses :file:`bar_baz_shield.overlay` when building for board
+``bar`` with shield ``baz_shield``, and :file:`bar_0_7_0_baz.conf` when
+building for revision ``0.7.0`` of board ``bar`` with any shield whose name
+starts with ``baz_``.
+
+Shield names and regular expressions behave exactly as in the top-level
+``shields`` key. Nesting only works in this direction: a ``boards`` key cannot
+appear inside a shield section.

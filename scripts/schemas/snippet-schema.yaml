@@ -27,6 +27,16 @@
 #     append:
 #       EXTRA_CONF_FILE: my_vendor.conf
 
+# 'shields' can also be nested inside a board, or inside a board revision, for
+# settings which need both:
+# name: foo
+# boards:
+#   my_board/my_soc:
+#     shields:
+#       my_shield:
+#         append:
+#           EXTRA_DTC_OVERLAY_FILE: my_board_my_shield.overlay
+
 # 'revisions' can also be used to include additional file(s) specific to a board revision:
 # name: foo
 # boards:
@@ -103,6 +113,8 @@ properties:
         properties:
           append:
             $ref: "#/$defs/append-schema"
+          shields:
+            $ref: "#/$defs/shields-schema"
           revisions:
             type: object
             patternProperties:
@@ -111,6 +123,8 @@ properties:
                 properties:
                   append:
                     $ref: "#/$defs/append-schema"
+                  shields:
+                    $ref: "#/$defs/shields-schema"
                 additionalProperties: false
         additionalProperties: false
 required:

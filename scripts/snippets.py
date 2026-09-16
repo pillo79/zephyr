@@ -39,6 +39,7 @@ except ImportError:
 Appends = dict[str, list[str]]
 BoardRevisionAppends = dict[str, dict[str, list[str]]]
 ShieldAppends = dict[str, Appends]
+BoardRevisionShieldAppends = dict[str, ShieldAppends]
 
 def _new_append():
     return defaultdict(list)
@@ -48,6 +49,9 @@ def _new_board2appends():
 
 def _new_shield2appends():
     return defaultdict(_new_append)
+
+def _new_board2shield2appends():
+    return defaultdict(lambda: defaultdict(_new_shield2appends))
 
 def _new_dirs():
     return []
@@ -63,6 +67,8 @@ class Snippet:
     appends: Appends = field(default_factory=_new_append)
     board2appends: dict[str, BoardRevisionAppends] = field(default_factory=_new_board2appends)
     shield2appends: ShieldAppends = field(default_factory=_new_shield2appends)
+    board2shield2appends: dict[str, BoardRevisionShieldAppends] = field(
+        default_factory=_new_board2shield2appends)
 
     def process_data(self, pathobj: Path, snippet_data: dict, sysbuild: bool):
         '''Process the data in a snippet.yml file, after it is loaded into a
@@ -116,9 +122,17 @@ class Snippet:
                 for variable, value in scoped_appends(appenddata).items():
                     self.board2appends[board][revision][variable] += \
                         append_value(variable, value)
+                for shield, appends in scoped_shields(appenddata).items():
+                    for variable, value in appends.items():
+                        self.board2shield2appends[board][revision][shield][variable] += \
+                            append_value(variable, value)
             for variable, value in scoped_appends(settings).items():
                 self.board2appends[board][""][variable] += \
                     append_value(variable, value)
+            for shield, appends in scoped_shields(settings).items():
+                for variable, value in appends.items():
+                    self.board2shield2appends[board][""][shield][variable] += \
+                        append_value(variable, value)
         self.description = snippet_data.get('description')
         self.dirs.append(pathobj.parent)
 
@@ -208,21 +222,24 @@ zephyr_create_scope(snippets)
             output += self.output_appends_for_board(board, appends)
         for shield, appends in snippet.shield2appends.items():
             output += self.output_appends_for_shield(shield, appends, 0)
+        for board, shield2appends in snippet.board2shield2appends.items():
+            output += self.output_shield_appends_for_board(board, shield2appends)
         return output
 
-    def output_appends_for_board(self, board: str, appends: Appends):
-        output = ''
+    def output_board_condition(self, board: str, what: str):
         if board.startswith('/'):
             board_re = board[1:-1]
-            output += f'''\
-# Appends for board regular expression '{board_re}'
+            return f'''\
+# {what} for board regular expression '{board_re}'
 if("${{BOARD}}/${{BOARD_QUALIFIERS}}" MATCHES "^{board_re}$")
 '''
-        else:
-            output += f'''\
-# Appends for board '{board}'
+        return f'''\
+# {what} for board '{board}'
 if("${{BOARD}}/${{BOARD_QUALIFIERS}}" STREQUAL "{board}")
 '''
+
+    def output_appends_for_board(self, board: str, appends: Appends):
+        output = self.output_board_condition(board, 'Appends')
 
         # Output board variables first then board revision variables
         output += self.output_appends(appends[""], 1)
@@ -234,6 +251,26 @@ if("${{BOARD}}/${{BOARD_QUALIFIERS}}" STREQUAL "{board}")
   if("${{BOARD_REVISION}}" STREQUAL "{revision}")
 '''
                 output += self.output_appends(appends[revision], 2)
+                output += '  endif()\n'
+
+        output += 'endif()\n'
+        return output
+
+    def output_shield_appends_for_board(self, board: str,
+                                        shield2appends: BoardRevisionShieldAppends):
+        output = self.output_board_condition(board, 'Shield appends')
+
+        for shield, appends in shield2appends[""].items():
+            output += self.output_appends_for_shield(shield, appends, 1)
+
+        for revision in shield2appends:
+            if revision != "":
+                output += f'''\
+  # Shield appends for revision '{revision}'
+  if("${{BOARD_REVISION}}" STREQUAL "{revision}")
+'''
+                for shield, appends in shield2appends[revision].items():
+                    output += self.output_appends_for_shield(shield, appends, 2)
                 output += '  endif()\n'
 
         output += 'endif()\n'
