@@ -1,0 +1,5 @@
+name: dummy-shield
+shields:
+  demo_shield:
+    append:
+      EXTRA_CONF_FILE: dummy.conf

@@ -93,3 +93,63 @@ tests:
     - qemu_cortex_m3
     integration_platforms:
     - native_sim
+  # Test the `shield_check` snippet with no shield in the build
+  buildsystem.snippets.shield_none:
+    extra_args:
+    - SNIPPET="shield_check"
+    - TEST_EXPECTED_SNIPPET_CONF_COUNT=2
+    extra_configs:
+    - CONFIG_TEST_TYPE_NONE=y
+    - CONFIG_TEST_EXPECT_SHIELD_COMMON=y
+    - CONFIG_TEST_EXPECT_PRECEDENCE_VAL=1
+    platform_allow:
+    - native_sim
+    integration_platforms:
+    - native_sim
+  # Test a shield selected by name, which also matches the regular expression
+  buildsystem.snippets.shield_name:
+    extra_args:
+    - SNIPPET="shield_check"
+    - SHIELD="snippet_shield_one"
+    - TEST_EXPECTED_SNIPPET_CONF_COUNT=4
+    extra_configs:
+    - CONFIG_TEST_TYPE_NONE=y
+    - CONFIG_TEST_EXPECT_SHIELD_COMMON=y
+    - CONFIG_TEST_EXPECT_SHIELD_ONE=y
+    - CONFIG_TEST_EXPECT_SHIELD_REGEX=y
+    - CONFIG_TEST_EXPECT_PRECEDENCE_VAL=2
+    platform_allow:
+    - native_sim
+    integration_platforms:
+    - native_sim
+  # Test a shield which only matches the regular expression
+  buildsystem.snippets.shield_regex:
+    extra_args:
+    - SNIPPET="shield_check"
+    - SHIELD="snippet_shield_two"
+    - TEST_EXPECTED_SNIPPET_CONF_COUNT=3
+    extra_configs:
+    - CONFIG_TEST_TYPE_NONE=y
+    - CONFIG_TEST_EXPECT_SHIELD_COMMON=y
+    - CONFIG_TEST_EXPECT_SHIELD_REGEX=y
+    - CONFIG_TEST_EXPECT_PRECEDENCE_VAL=2
+    platform_allow:
+    - native_sim
+    integration_platforms:
+    - native_sim
+  # Test that a regular expression matching several shields is applied once
+  buildsystem.snippets.shield_regex_multiple:
+    extra_args:
+    - SNIPPET="shield_check"
+    - SHIELD="snippet_shield_one;snippet_shield_two"
+    - TEST_EXPECTED_SNIPPET_CONF_COUNT=4
+    extra_configs:
+    - CONFIG_TEST_TYPE_NONE=y
+    - CONFIG_TEST_EXPECT_SHIELD_COMMON=y
+    - CONFIG_TEST_EXPECT_SHIELD_ONE=y
+    - CONFIG_TEST_EXPECT_SHIELD_REGEX=y
+    - CONFIG_TEST_EXPECT_PRECEDENCE_VAL=2
+    platform_allow:
+    - native_sim
+    integration_platforms:
+    - native_sim

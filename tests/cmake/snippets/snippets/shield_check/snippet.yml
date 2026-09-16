@@ -1,0 +1,19 @@
+name: shield_check
+append:
+  EXTRA_CONF_FILE: shield_check.conf
+boards:
+  # Used to check that a shield section takes precedence over a board one
+  /native_sim.*/:
+    append:
+      EXTRA_CONF_FILE: shield_check_board.conf
+shields:
+  snippet_shield_one:
+    append:
+      EXTRA_CONF_FILE: shield_one.conf
+  /snippet_shield_.*/:
+    append:
+      EXTRA_CONF_FILE: shield_regex.conf
+  snippet_shield_missing:
+    # No such shield exists, so this must never be applied.
+    append:
+      EXTRA_CONF_FILE: shield_never.conf

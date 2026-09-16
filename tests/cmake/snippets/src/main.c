@@ -168,6 +168,20 @@ ZTEST(snippet_tests, test_dtc_overlay)
 	}
 }
 
+ZTEST(snippet_tests, test_shield_snippets)
+{
+	zassert_equal(IS_ENABLED(CONFIG_TEST_SHIELD_COMMON_APPLIED),
+		      IS_ENABLED(CONFIG_TEST_EXPECT_SHIELD_COMMON));
+	zassert_equal(IS_ENABLED(CONFIG_TEST_SHIELD_ONE_APPLIED),
+		      IS_ENABLED(CONFIG_TEST_EXPECT_SHIELD_ONE));
+	zassert_equal(IS_ENABLED(CONFIG_TEST_SHIELD_REGEX_APPLIED),
+		      IS_ENABLED(CONFIG_TEST_EXPECT_SHIELD_REGEX));
+	zassert_false(IS_ENABLED(CONFIG_TEST_SHIELD_NEVER_APPLIED));
+
+	/* A shield section wins over a board section */
+	zassert_equal(CONFIG_TEST_PRECEDENCE_VAL, CONFIG_TEST_EXPECT_PRECEDENCE_VAL);
+}
+
 ZTEST(snippet_tests, test_cmake_include)
 {
 	if (IS_ENABLED(CONFIG_TEST_TYPE_FOO) ||

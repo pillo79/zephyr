@@ -519,12 +519,14 @@ TESTDATA_PART4 = [
      0, None),
     ('test_d.check_1', ['dummy', 'cdc-acm-console'],
      2, 'Snippet not supported'),
+    ('test_d.check_1', ['dummy-shield'],
+     0, None),
 ]
 
 @pytest.mark.parametrize(
     'testsuite_id, required_snippets, expected_filtered_len, expected_filtered_reason',
     TESTDATA_PART4,
-    ids=['app', 'global', 'multiple']
+    ids=['app', 'global', 'multiple', 'shield']
 )
 def test_required_snippets_short(
     class_testplan,

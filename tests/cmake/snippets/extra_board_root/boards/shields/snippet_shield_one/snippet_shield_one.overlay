@@ -1,0 +1,11 @@
+/*
+ * Copyright (c) 2026 Arduino SA
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * This shield only exists so that the snippet tests have a shield to select;
+ * the tests check which snippet files were applied, not what the shield does.
+ */
+
+/ {
+	snippet-shield-one {};
+};

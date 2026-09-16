@@ -73,6 +73,50 @@ config TEST_COMMON_VAL
 	  This option's value should be overridden by the snippet config
 	  overlays.
 
+# Set by the 'shield_check' snippet, to test shield-specific snippet settings
+config TEST_SHIELD_COMMON_APPLIED
+	bool "Test shield check snippet applied"
+	help
+	  Set by the common part of the 'shield_check' snippet.
+
+config TEST_SHIELD_ONE_APPLIED
+	bool "Test shield-specific snippet applied"
+	help
+	  Set by the 'shield_check' snippet section for shield
+	  'snippet_shield_one'.
+
+config TEST_SHIELD_REGEX_APPLIED
+	bool "Test shield regular expression snippet applied"
+	help
+	  Set by the 'shield_check' snippet section matching all the
+	  'snippet_shield_*' shields.
+
+config TEST_SHIELD_NEVER_APPLIED
+	bool "Test snippet section for a shield which is never used"
+	help
+	  Set by the 'shield_check' snippet section for a shield which does not
+	  exist, and must therefore never end up in the build.
+
+# Set by the snippet section which is expected to win when a board section and
+# a shield section both set it
+config TEST_PRECEDENCE_VAL
+	int "Test value set by several competing snippet sections"
+	default 0
+
+# Set from tests.yaml, to tell the test which sections it should see
+config TEST_EXPECT_PRECEDENCE_VAL
+	int "Expected value of TEST_PRECEDENCE_VAL"
+	default 0
+
+config TEST_EXPECT_SHIELD_COMMON
+	bool "Expect the common 'shield_check' settings"
+
+config TEST_EXPECT_SHIELD_ONE
+	bool "Expect the 'snippet_shield_one' settings"
+
+config TEST_EXPECT_SHIELD_REGEX
+	bool "Expect the shield regular expression settings"
+
 # Used for testing board version snippets
 config TEST_VER_CHECK_APPLIED
 	bool "Test version check snippet applied"
