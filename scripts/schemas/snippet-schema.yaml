@@ -85,9 +85,8 @@ properties:
                 type: object
                 properties:
                   append:
-                    include: append-schema
+                    $ref: "#/$defs/append-schema"
                 additionalProperties: false
-          additionalProperties: false
         additionalProperties: false
 required:
   - name
