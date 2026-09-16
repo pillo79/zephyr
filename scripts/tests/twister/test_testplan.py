@@ -521,12 +521,14 @@ TESTDATA_PART4 = [
      2, 'Snippet not supported'),
     ('test_d.check_1', ['dummy-shield'],
      0, None),
+    ('test_d.check_1', ['dummy-board-shield'],
+     2, 'Snippet not supported'),
 ]
 
 @pytest.mark.parametrize(
     'testsuite_id, required_snippets, expected_filtered_len, expected_filtered_reason',
     TESTDATA_PART4,
-    ids=['app', 'global', 'multiple', 'shield']
+    ids=['app', 'global', 'multiple', 'shield', 'board_shield']
 )
 def test_required_snippets_short(
     class_testplan,

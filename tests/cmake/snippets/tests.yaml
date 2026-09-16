@@ -153,3 +153,60 @@ tests:
     - native_sim
     integration_platforms:
     - native_sim
+  # Test shield sections nested in a board section, with no shield in the build
+  buildsystem.snippets.board_shield_none:
+    extra_args:
+    - SNIPPET="board_shield_check"
+    - TEST_EXPECTED_SNIPPET_CONF_COUNT=1
+    extra_configs:
+    - CONFIG_TEST_TYPE_NONE=y
+    - CONFIG_TEST_EXPECT_BOARD_SHIELD_COMMON=y
+    - CONFIG_TEST_EXPECT_PRECEDENCE_VAL=1
+    platform_allow:
+    - native_sim
+    integration_platforms:
+    - native_sim
+  # Test a shield nested in a board section, selected by name and by regex
+  buildsystem.snippets.board_shield_name:
+    extra_args:
+    - SNIPPET="board_shield_check"
+    - SHIELD="snippet_shield_one"
+    - TEST_EXPECTED_SNIPPET_CONF_COUNT=4
+    extra_configs:
+    - CONFIG_TEST_TYPE_NONE=y
+    - CONFIG_TEST_EXPECT_BOARD_SHIELD_COMMON=y
+    - CONFIG_TEST_EXPECT_BOARD_SHIELD_ONE=y
+    - CONFIG_TEST_EXPECT_BOARD_SHIELD_REGEX=y
+    - CONFIG_TEST_EXPECT_PRECEDENCE_VAL=3
+    platform_allow:
+    - native_sim
+    integration_platforms:
+    - native_sim
+  # Test a board section which only has a nested shield
+  buildsystem.snippets.board_shield_only:
+    extra_args:
+    - SNIPPET="board_shield_check"
+    - SHIELD="snippet_shield_two"
+    - TEST_EXPECTED_SNIPPET_CONF_COUNT=4
+    extra_configs:
+    - CONFIG_TEST_TYPE_NONE=y
+    - CONFIG_TEST_EXPECT_BOARD_SHIELD_COMMON=y
+    - CONFIG_TEST_EXPECT_BOARD_SHIELD_REGEX=y
+    - CONFIG_TEST_EXPECT_BOARD_ONLY_SHIELD_TWO=y
+    - CONFIG_TEST_EXPECT_PRECEDENCE_VAL=2
+    platform_allow:
+    - native_sim
+    integration_platforms:
+    - native_sim
+  # Test a shield nested in a board revision
+  buildsystem.snippets.version_shield:
+    extra_args:
+    - SNIPPET="ver_check"
+    - SHIELD="snippet_shield_one"
+    extra_configs:
+    - CONFIG_TEST_TYPE_VER_CHECK_SPECIFIC_SHIELD=y
+    platform_allow:
+    - nrf9160dk@0.7.0/nrf9160
+    integration_platforms:
+    - nrf9160dk@0.7.0/nrf9160
+    build_only: true

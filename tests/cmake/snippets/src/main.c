@@ -34,6 +34,19 @@
 #if !defined(CONFIG_TEST_VER_CHECK_SPECIFIC_VERSION_APPLIED)
 #error "Board specific ver_check snippet has not been applied"
 #endif
+#if defined(CONFIG_TEST_VER_CHECK_SPECIFIC_SHIELD_APPLIED)
+#error "Board revision shield ver_check snippet has wrongly been applied"
+#endif
+#elif defined(CONFIG_TEST_TYPE_VER_CHECK_SPECIFIC_SHIELD)
+#if !defined(CONFIG_TEST_VER_CHECK_APPLIED)
+#error "Base ver_check snippet has not been applied"
+#endif
+#if !defined(CONFIG_TEST_VER_CHECK_SPECIFIC_VERSION_APPLIED)
+#error "Board specific ver_check snippet has not been applied"
+#endif
+#if !defined(CONFIG_TEST_VER_CHECK_SPECIFIC_SHIELD_APPLIED)
+#error "Board revision shield ver_check snippet has not been applied"
+#endif
 #endif
 
 ZTEST_SUITE(snippet_tests, NULL, NULL, NULL, NULL, NULL);
@@ -179,6 +192,23 @@ ZTEST(snippet_tests, test_shield_snippets)
 	zassert_false(IS_ENABLED(CONFIG_TEST_SHIELD_NEVER_APPLIED));
 
 	/* A shield section wins over a board section */
+	zassert_equal(CONFIG_TEST_PRECEDENCE_VAL, CONFIG_TEST_EXPECT_PRECEDENCE_VAL);
+}
+
+ZTEST(snippet_tests, test_board_shield_snippets)
+{
+	zassert_equal(IS_ENABLED(CONFIG_TEST_BOARD_SHIELD_COMMON_APPLIED),
+		      IS_ENABLED(CONFIG_TEST_EXPECT_BOARD_SHIELD_COMMON));
+	zassert_equal(IS_ENABLED(CONFIG_TEST_BOARD_SHIELD_ONE_APPLIED),
+		      IS_ENABLED(CONFIG_TEST_EXPECT_BOARD_SHIELD_ONE));
+	zassert_equal(IS_ENABLED(CONFIG_TEST_BOARD_SHIELD_REGEX_APPLIED),
+		      IS_ENABLED(CONFIG_TEST_EXPECT_BOARD_SHIELD_REGEX));
+	zassert_equal(IS_ENABLED(CONFIG_TEST_BOARD_ONLY_SHIELD_TWO_APPLIED),
+		      IS_ENABLED(CONFIG_TEST_EXPECT_BOARD_ONLY_SHIELD_TWO));
+
+	/* A board and shield section wins over a plain shield section, which in
+	 * turn wins over a plain board section
+	 */
 	zassert_equal(CONFIG_TEST_PRECEDENCE_VAL, CONFIG_TEST_EXPECT_PRECEDENCE_VAL);
 }
 

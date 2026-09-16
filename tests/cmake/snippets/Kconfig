@@ -47,6 +47,12 @@ config TEST_TYPE_VER_CHECK_SPECIFIC
 	help
 	  Test board version snippet application with specific board version
 
+config TEST_TYPE_VER_CHECK_SPECIFIC_SHIELD
+	bool "Test Type: Version check specific with shield"
+	help
+	  Test board version snippet application with a specific board version
+	  and a shield
+
 config TEST_TYPE_FILE_LIST
 	bool "Test Type: File list"
 	help
@@ -97,6 +103,20 @@ config TEST_SHIELD_NEVER_APPLIED
 	  Set by the 'shield_check' snippet section for a shield which does not
 	  exist, and must therefore never end up in the build.
 
+# Set by the 'board_shield_check' snippet, to test shield sections nested
+# inside a board section
+config TEST_BOARD_SHIELD_COMMON_APPLIED
+	bool "Test board section of the board_shield_check snippet applied"
+
+config TEST_BOARD_SHIELD_ONE_APPLIED
+	bool "Test board + 'snippet_shield_one' section applied"
+
+config TEST_BOARD_SHIELD_REGEX_APPLIED
+	bool "Test board + shield regular expression section applied"
+
+config TEST_BOARD_ONLY_SHIELD_TWO_APPLIED
+	bool "Test section of a board which only has a nested shield applied"
+
 # Set by the snippet section which is expected to win when a board section and
 # a shield section both set it
 config TEST_PRECEDENCE_VAL
@@ -117,6 +137,18 @@ config TEST_EXPECT_SHIELD_ONE
 config TEST_EXPECT_SHIELD_REGEX
 	bool "Expect the shield regular expression settings"
 
+config TEST_EXPECT_BOARD_SHIELD_COMMON
+	bool "Expect the 'board_shield_check' board settings"
+
+config TEST_EXPECT_BOARD_SHIELD_ONE
+	bool "Expect the board + 'snippet_shield_one' settings"
+
+config TEST_EXPECT_BOARD_SHIELD_REGEX
+	bool "Expect the board + shield regular expression settings"
+
+config TEST_EXPECT_BOARD_ONLY_SHIELD_TWO
+	bool "Expect the settings of the board which only has a nested shield"
+
 # Used for testing board version snippets
 config TEST_VER_CHECK_APPLIED
 	bool "Test version check snippet applied"
@@ -127,6 +159,12 @@ config TEST_VER_CHECK_SPECIFIC_VERSION_APPLIED
 	bool "Test version check with board version snippet applied"
 	help
 	  This option's value should be set by the ver_check snippet.
+
+config TEST_VER_CHECK_SPECIFIC_SHIELD_APPLIED
+	bool "Test version check with board version and shield snippet applied"
+	help
+	  This option's value should be set by the ver_check snippet section for
+	  a shield nested inside a board revision.
 
 # Used for testing board file list variables
 config TEST_BOARD1

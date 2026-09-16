@@ -1,0 +1,24 @@
+name: board_shield_check
+boards:
+  /native_sim.*/:
+    append:
+      EXTRA_CONF_FILE: board_common.conf
+    shields:
+      snippet_shield_one:
+        append:
+          EXTRA_CONF_FILE: board_shield_one.conf
+      /snippet_shield_.*/:
+        append:
+          EXTRA_CONF_FILE: board_shield_regex.conf
+  # A board section with no 'append' of its own, only a nested shield
+  /native.*/:
+    shields:
+      snippet_shield_two:
+        append:
+          EXTRA_CONF_FILE: board_only_shield_two.conf
+shields:
+  # Used to check that a board and shield section takes precedence over a
+  # plain shield one
+  /snippet_shield_.*/:
+    append:
+      EXTRA_CONF_FILE: board_shield_precedence.conf
