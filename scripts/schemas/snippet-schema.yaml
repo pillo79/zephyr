@@ -17,6 +17,16 @@
 #     append:
 #       EXTRA_DTC_OVERLAY_FILE: m3.overlay
 
+# Example usage of applying a snippet only when a shield is in use:
+# name: foo
+# shields:
+#   my_shield:
+#     append:
+#       EXTRA_DTC_OVERLAY_FILE: my_shield.overlay
+#   /my_vendor_.*/:
+#     append:
+#       EXTRA_CONF_FILE: my_vendor.conf
+
 # 'revisions' can also be used to include additional file(s) specific to a board revision:
 # name: foo
 # boards:
@@ -63,6 +73,19 @@ $defs:
         type: string
     additionalProperties: false
 
+  shields-schema:
+    # Sub-schema for settings which only apply when a shield is in use.
+    # The keys are shield names, or regular expressions enclosed in slashes.
+    # See uses under '$ref: "#/$defs/shields-schema"' keys below.
+    type: object
+    patternProperties:
+      "(.*)":
+        type: object
+        properties:
+          append:
+            $ref: "#/$defs/append-schema"
+        additionalProperties: false
+
 properties:
   name:
     type: string
@@ -70,6 +93,8 @@ properties:
     type: string
   append:
     $ref: "#/$defs/append-schema"
+  shields:
+    $ref: "#/$defs/shields-schema"
   boards:
     type: object
     patternProperties:

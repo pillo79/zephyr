@@ -1197,8 +1197,10 @@ class TestPlan:
 
                             # If the "appends" key is present with at least one entry then this
                             # snippet applies to all boards and further platform-specific checks
-                            # are not required
-                            if found_snippets[this_snippet].appends:
+                            # are not required. The same goes for a snippet which is specialized
+                            # for shields, as shields are not tied to a single platform.
+                            if found_snippets[this_snippet].appends or \
+                               found_snippets[this_snippet].shield2appends:
                                 continue
 
                             for this_board in found_snippets[this_snippet].board2appends:

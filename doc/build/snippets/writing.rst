@@ -279,3 +279,69 @@ common files:
 The above example will use :file:`first.overlay` for all revisions of the ``bar`` board, and will
 also include :file:`extra_0_7_0.overlay` when building for revision ``0.7.0`` of the ``bar``
 board (``bar@0.7.0``).
+
+Shield-specific settings
+************************
+
+You can write settings that only apply when a :ref:`shield <shields>` is used.
+
+Like the board-specific settings described above, these are applied in
+**addition** to the snippet settings that apply to all builds. They apply
+whenever the shield is part of the build (``west build --shield`` or
+``-DSHIELD=``), whatever the board is.
+
+Shield sections are independent from board sections, and both are applied when
+both match. All the shield sections are applied after the sections which do
+not depend on a shield, so that a shield takes precedence over the board it is
+mounted on, the same way a shield's own :file:`Kconfig.defconfig` and
+devicetree overlay take precedence over the board's.
+
+When the same option is set twice, the section applied last wins. In
+increasing order of precedence, that is: the settings common to all builds,
+the board sections, the board revision sections, and the shield sections.
+
+The shield is matched against its name, as declared in the shield's
+:file:`shield.yml` file.
+
+By name
+=======
+
+.. code-block:: yaml
+
+   name: ...
+   shields:
+     bar_shield: # settings for shield "bar_shield" go here
+       append:
+         EXTRA_DTC_OVERLAY_FILE: bar_shield.overlay
+     baz_shield: # settings for shield "baz_shield" go here
+       append:
+         EXTRA_DTC_OVERLAY_FILE: baz_shield.overlay
+
+The above example uses :file:`bar_shield.overlay` when building with shield
+``bar_shield``, and :file:`baz_shield.overlay` when building with
+``baz_shield``. When both shields are used, both overlays are applied.
+
+By regular expression
+=====================
+
+As for boards, you can enclose the shield name in slashes (``/``) to match the
+name against a regular expression in the `CMake syntax`_. The regular
+expression must match the entire shield name.
+
+.. code-block:: yaml
+
+   name: foo
+   shields:
+     /my_vendor_.*/:
+       append:
+         EXTRA_DTC_OVERLAY_FILE: my_vendor.overlay
+
+The above example uses devicetree overlay :file:`my_vendor.overlay` when
+building with either shield ``my_vendor_shield1`` or ``my_vendor_shield2``. The
+overlay is applied only once, even if both shields are used in the same build.
+
+.. note::
+
+   Shield sections work in :ref:`sysbuild <sysbuild>` builds as well, since
+   ``SHIELD`` applies to the whole build. ``SB_EXTRA_CONF_FILE`` can therefore
+   be used inside a shield section, just like in the other sections.

@@ -38,12 +38,16 @@ except ImportError:
 # to the list of values to append to them.
 Appends = dict[str, list[str]]
 BoardRevisionAppends = dict[str, dict[str, list[str]]]
+ShieldAppends = dict[str, Appends]
 
 def _new_append():
     return defaultdict(list)
 
 def _new_board2appends():
     return defaultdict(lambda: defaultdict(_new_append))
+
+def _new_shield2appends():
+    return defaultdict(_new_append)
 
 def _new_dirs():
     return []
@@ -58,6 +62,7 @@ class Snippet:
     description: str | None = None
     appends: Appends = field(default_factory=_new_append)
     board2appends: dict[str, BoardRevisionAppends] = field(default_factory=_new_board2appends)
+    shield2appends: ShieldAppends = field(default_factory=_new_shield2appends)
 
     def process_data(self, pathobj: Path, snippet_data: dict, sysbuild: bool):
         '''Process the data in a snippet.yml file, after it is loaded into a
@@ -89,8 +94,22 @@ class Snippet:
                     for variable, value in settings.get('append', {}).items()
                     if (variable[0:3] == 'SB_') == sysbuild}
 
+        def scoped_shields(settings: dict):
+            '''Filter the 'shields' section for the shields which have at least one
+            variable belonging to this pass.'''
+            shields = {}
+            for shield, shielddata in settings.get('shields', {}).items():
+                check_key('shield', shield)
+                appends = scoped_appends(shielddata)
+                if appends:
+                    shields[shield] = appends
+            return shields
+
         for variable, value in scoped_appends(snippet_data).items():
             self.appends[variable] += append_value(variable, value)
+        for shield, appends in scoped_shields(snippet_data).items():
+            for variable, value in appends.items():
+                self.shield2appends[shield][variable] += append_value(variable, value)
         for board, settings in snippet_data.get('boards', {}).items():
             check_key('board', board)
             for revision, appenddata in settings.get('revisions', {}).items():
@@ -187,6 +206,8 @@ zephyr_create_scope(snippets)
         output += self.output_appends(snippet.appends, 0)
         for board, appends in snippet.board2appends.items():
             output += self.output_appends_for_board(board, appends)
+        for shield, appends in snippet.shield2appends.items():
+            output += self.output_appends_for_shield(shield, appends, 0)
         return output
 
     def output_appends_for_board(self, board: str, appends: Appends):
@@ -216,6 +237,31 @@ if("${{BOARD}}/${{BOARD_QUALIFIERS}}" STREQUAL "{board}")
                 output += '  endif()\n'
 
         output += 'endif()\n'
+        return output
+
+    def output_appends_for_shield(self, shield: str, appends: Appends, indent: int):
+        space = '  ' * indent
+        output = ''
+        if shield.startswith('/'):
+            shield_re = shield[1:-1]
+            # Filter a copy of the shield list instead of looping over it, so
+            # that the appends are emitted once even if several shields match.
+            output += f'''\
+{space}# Appends for shield regular expression '{shield_re}'
+{space}set(snippets_matched_shields "${{SHIELD_AS_LIST}}")
+{space}list(FILTER snippets_matched_shields INCLUDE REGEX "^{shield_re}$")
+{space}if(NOT snippets_matched_shields STREQUAL "")
+'''
+            output += self.output_appends(appends, indent + 1)
+            output += f'{space}endif()\n'
+            output += f'{space}unset(snippets_matched_shields)\n'
+        else:
+            output += f'''\
+{space}# Appends for shield '{shield}'
+{space}if("{shield}" IN_LIST SHIELD_AS_LIST)
+'''
+            output += self.output_appends(appends, indent + 1)
+            output += f'{space}endif()\n'
         return output
 
     def output_appends(self, appends: Appends, indent: int):
