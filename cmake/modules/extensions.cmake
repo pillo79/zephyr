@@ -7248,24 +7248,19 @@ function(add_llext_target target_name)
   # Make sure the intermediate output directory exists.
   file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/llext)
 
-  # Set up an intermediate processing step between compilation and packaging
-  # to be used to support POST_BUILD commands on targets that do not use a
-  # dynamic library.
-  set(llext_proc_target ${target_name}_llext_proc)
+  # By default, copy the `lib_output` binary file to the expected `pkg_input`
+  # location. If POST_BUILD commands are attached to the lib target via
+  # add_llext_command(), they take care of this and the default copy is
+  # replaced by a no-op.
   set(llext_pkg_input ${PROJECT_BINARY_DIR}/llext/${target_name}_debug.elf)
-  add_custom_target(${llext_proc_target} DEPENDS ${llext_lib_target} ${llext_lib_output})
-  set_property(TARGET ${llext_proc_target} PROPERTY has_post_build_cmds 0)
-
-  # By default this target must copy the `lib_output` binary file to the
-  # expected `pkg_input` location. If actual POST_BUILD commands are defined,
-  # they will take care of this and the default copy is replaced by a no-op.
-  set(has_post_build_cmds "$<TARGET_PROPERTY:${llext_proc_target},has_post_build_cmds>")
+  set_property(TARGET ${llext_lib_target} PROPERTY has_post_build_cmds 0)
+  set(has_post_build_cmds "$<TARGET_PROPERTY:${llext_lib_target},has_post_build_cmds>")
   set(noop_cmd ${CMAKE_COMMAND} -E true)
   set(copy_cmd ${CMAKE_COMMAND} -E copy ${llext_lib_output} ${llext_pkg_input})
   add_custom_command(
     OUTPUT ${llext_pkg_input}
     COMMAND "$<IF:${has_post_build_cmds},${noop_cmd},${copy_cmd}>"
-    DEPENDS ${llext_proc_target}
+    DEPENDS ${llext_lib_target} ${llext_lib_output}
     COMMAND_EXPAND_LISTS
   )
 
@@ -7369,8 +7364,7 @@ function(add_llext_command)
 
   # Check the target exists and refers to an llext target
   set(target_name ${LLEXT_TARGET})
-  set(llext_lib_target  ${target_name}_llext_lib)
-  set(llext_proc_target ${target_name}_llext_proc)
+  set(llext_lib_target ${target_name}_llext_lib)
   if(NOT TARGET ${llext_lib_target})
     message(FATAL_ERROR "add_llext_command: not an llext target: ${target_name}")
   endif()
@@ -7385,9 +7379,9 @@ function(add_llext_command)
   elseif(LLEXT_POST_BUILD)
     # > after linking, but before llext packaging:
     #   - stop default file copy to prevent user files from being clobbered;
-    #   - execute user command(s) after the (now empty) `llext_proc_target`.
-    set_property(TARGET ${llext_proc_target} PROPERTY has_post_build_cmds 1)
-    set(cmd_target ${llext_proc_target})
+    #   - execute user command(s) after the lib target's link step.
+    set_property(TARGET ${llext_lib_target} PROPERTY has_post_build_cmds 1)
+    set(cmd_target ${llext_lib_target})
     set(build_step POST_BUILD)
   elseif(LLEXT_POST_PKG)
     # > after the final llext binary is ready:
