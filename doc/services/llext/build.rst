@@ -61,11 +61,11 @@ retrieved using the ``get_target_property()`` CMake function:
 
 ``lib_target``
 
-    Target name for the source compilation and/or link step.
+    Target name for the source compilation and link step.
 
 ``lib_output``
 
-    The binary file resulting from compilation and/or linking steps.
+    The binary file resulting from the link step.
 
 ``pkg_input``
 
@@ -111,8 +111,8 @@ The different build steps are:
 
 ``PRE_BUILD``
 
-    Before the extension code is linked, if the architecture uses dynamic
-    libraries. This step can access ``lib_target`` and its own properties.
+    Before the extension code is linked. This step can access ``lib_target``
+    and its own properties.
 
 ``POST_BUILD``
 

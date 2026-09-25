@@ -470,7 +470,6 @@ ZTEST(llext, test_inspect)
 	llext_unload(&ext);
 }
 
-#ifndef CONFIG_LLEXT_TYPE_ELF_OBJECT
 static LLEXT_CONST uint8_t multi_file_ext[] LLEXT_SECT ELF_ALIGN = {
 	#include "multi_file.inc"
 };
@@ -489,8 +488,6 @@ static LLEXT_CONST uint8_t riscv_edge_case_non_paired_hi20_lo12_ext[] ELF_ALIGN 
 };
 LLEXT_LOAD_UNLOAD(riscv_edge_case_non_paired_hi20_lo12)
 #endif /* CONFIG_RISCV */
-
-#endif /* !CONFIG_LLEXT_TYPE_ELF_OBJECT */
 
 #ifdef CONFIG_LLEXT_VENEERS
 static LLEXT_CONST uint8_t veneer_ext[] ELF_ALIGN = {
@@ -604,12 +601,6 @@ ZTEST(llext, test_find_section)
 
 	uintptr_t symbol_ptr = (uintptr_t)llext_find_sym(&ext->exp_tab, "number");
 	uintptr_t section_ptr = (uintptr_t)find_section_ext + section_ofs;
-
-	/*
-	 * FIXME on RISC-V, at least for GCC, the symbols aren't always at the beginning
-	 * of the section when CONFIG_LLEXT_TYPE_ELF_OBJECT is used, breaking this assertion.
-	 * Currently, CONFIG_LLEXT_TYPE_ELF_OBJECT is not supported on RISC-V.
-	 */
 
 	zassert_equal(symbol_ptr, section_ptr,
 		      "symbol at %p != .data section at %p (%zd bytes in the ELF)",

@@ -270,12 +270,6 @@ ELF object type
 The LLEXT subsystem supports loading different types of extensions; the type
 can be set by choosing among the following Kconfig options:
 
-:kconfig:option:`CONFIG_LLEXT_TYPE_ELF_OBJECT`
-
-        Build and expect relocatable files as binary object type for the LLEXT
-        subsystem. A single compiler invocation is used to generate the object
-        file.
-
 :kconfig:option:`CONFIG_LLEXT_TYPE_ELF_RELOCATABLE`
 
         Build and expect relocatable (partially linked) files as the binary

@@ -7118,9 +7118,7 @@ to compile and link an llext.
 
    Add a custom target that compiles a set of source files to a .llext file.
 
-   Output and source files must be specified using the ``OUTPUT`` and ``SOURCES`` arguments. Only
-   one source file is supported when :kconfig:option:`CONFIG_LLEXT_TYPE_ELF_OBJECT` is selected,
-   since there is no linking step in that case.
+   Output and source files must be specified using the ``OUTPUT`` and ``SOURCES`` arguments.
 
    The llext code will be compiled with mostly the same C compiler flags used in the Zephyr build,
    but with some important modifications. The list of flags to remove and flags to append is
@@ -7130,8 +7128,8 @@ to compile and link an llext.
    The following custom properties of ``target_name`` are defined and can be retrieved using the
    :cmake:command:`get_target_property <command:get_target_property>` function:
 
-   * ``lib_target``: Target name for the source compilation and/or link step.
-   * ``lib_output``: The binary file resulting from compilation and/or linking steps.
+   * ``lib_target``: Target name for the source compilation and link step.
+   * ``lib_output``: The binary file resulting from the link step.
    * ``pkg_input``: The file to be used as input for the packaging step.
    * ``pkg_output``: The final .llext file.
 
@@ -7160,12 +7158,6 @@ function(add_llext_target target_name)
   # Source and output files must be provided
   zephyr_check_arguments_required_all("add_llext_target" LLEXT OUTPUT SOURCES)
 
-  list(LENGTH LLEXT_SOURCES source_count)
-  if(CONFIG_LLEXT_TYPE_ELF_OBJECT AND NOT (source_count EQUAL 1))
-    message(FATAL_ERROR "add_llext_target: only one source file is supported "
-                        "for ELF object file builds")
-  endif()
-
   set(llext_pkg_output ${LLEXT_OUTPUT})
   set(source_files ${LLEXT_SOURCES})
 
@@ -7188,16 +7180,10 @@ function(add_llext_target target_name)
       "$<FILTER:${zephyr_flags},EXCLUDE,${llext_remove_flags_regexp}>"
   )
 
-  # Compile the source file using current Zephyr settings but a different
-  # set of flags to obtain the desired llext object type.
+  # Compile and link the source files using current Zephyr settings but a
+  # different set of flags to obtain the desired llext object type.
   set(llext_lib_target ${target_name}_llext_lib)
-  if(CONFIG_LLEXT_TYPE_ELF_OBJECT)
-
-    # Create an object library to compile the source file
-    add_library(${llext_lib_target} EXCLUDE_FROM_ALL OBJECT ${source_files})
-    set(llext_lib_output $<TARGET_OBJECTS:${llext_lib_target}>)
-
-  elseif(CONFIG_LLEXT_TYPE_ELF_RELOCATABLE)
+  if(CONFIG_LLEXT_TYPE_ELF_RELOCATABLE)
 
     # CMake does not directly support a "RELOCATABLE" library target.
     # The "SHARED" target would be similar, but that unavoidably adds
@@ -7224,12 +7210,6 @@ function(add_llext_target target_name)
     set_target_properties(${llext_lib_target} PROPERTIES
       RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/llext
       SUFFIX ${CMAKE_C_OUTPUT_EXTENSION})
-    set(llext_lib_output $<TARGET_FILE:${llext_lib_target}>)
-
-    # Add the llext flags to the linking step as well
-    target_link_options(${llext_lib_target} PRIVATE
-      ${LLEXT_APPEND_FLAGS}
-    )
 
   elseif(CONFIG_LLEXT_TYPE_ELF_SHAREDLIB)
 
@@ -7238,14 +7218,9 @@ function(add_llext_target target_name)
     set_target_properties(${llext_lib_target} PROPERTIES
       LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/llext
     )
-    set(llext_lib_output $<TARGET_FILE:${llext_lib_target}>)
-
-    # Add the llext flags to the linking step as well
-    target_link_options(${llext_lib_target} PRIVATE
-      ${LLEXT_APPEND_FLAGS}
-    )
 
   endif()
+  set(llext_lib_output $<TARGET_FILE:${llext_lib_target}>)
 
   target_compile_definitions(${llext_lib_target} PRIVATE
     $<TARGET_PROPERTY:zephyr_interface,INTERFACE_COMPILE_DEFINITIONS>
@@ -7253,6 +7228,10 @@ function(add_llext_target target_name)
   )
   target_compile_options(${llext_lib_target} PRIVATE
     ${zephyr_filtered_flags}
+    ${LLEXT_APPEND_FLAGS}
+  )
+  # Add the llext flags to the linking step as well
+  target_link_options(${llext_lib_target} PRIVATE
     ${LLEXT_APPEND_FLAGS}
   )
   target_include_directories(${llext_lib_target} PRIVATE
@@ -7367,8 +7346,7 @@ endfunction()
    The different build steps are:
 
    ``PRE_BUILD``
-     Before the llext code is linked, if the architecture uses dynamic libraries. This step can
-     access ``lib_target`` and its own properties.
+     Before the llext code is linked. This step can access ``lib_target`` and its own properties.
 
    ``POST_BUILD``
      After the llext code is built, but before packaging it in an .llext file. This step is expected
@@ -7395,12 +7373,6 @@ function(add_llext_command)
   set(llext_proc_target ${target_name}_llext_proc)
   if(NOT TARGET ${llext_lib_target})
     message(FATAL_ERROR "add_llext_command: not an llext target: ${target_name}")
-  endif()
-
-  # ARM uses an object file representation so there is no link step.
-  if(CONFIG_ARM AND LLEXT_PRE_BUILD)
-    message(FATAL_ERROR
-            "add_llext_command: PRE_BUILD not supported on this arch")
   endif()
 
   # Determine the build step and the target to attach the command to
