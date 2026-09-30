@@ -49,8 +49,10 @@ class SPDX3Serializer:
     # IRI prefix of the SPDX License List licenses. These are defined by the
     # License List itself, so documents reference them via ExternalMap instead
     # of defining them: every document would otherwise define the same element,
-    # each with its own creationInfo, and documents could not be merged.
-    _LISTED_LICENSE_PREFIX = "https://spdx.org/licenses/"
+    # each with its own creationInfo, and documents could not be merged. The
+    # SPDX 3 License List data (spdx/license-list-data, SPDXv3) defines them
+    # with http:// IRIs, so the references must use the same.
+    _LISTED_LICENSE_PREFIX = "http://spdx.org/licenses/"
 
     # Name of the SBOMDocument that hosts the Build profile (build targets).
     _BUILD_DOCUMENT = "build"
