@@ -81,6 +81,15 @@ config COMMON_LIBC_MALLOC_ARENA_SIZE
 	  16kB and all other systems will default to using all remaining
 	  ram for the malloc heap.
 
+config HAS_RAM_HEAP_SENTRY
+	bool
+	help
+	  Selected by SoCs/HALs whose linker scripts define a _heap_sentry
+	  symbol marking the end of RAM usable by the "use all remaining
+	  RAM" (-1) COMMON_LIBC_MALLOC_ARENA_SIZE heap, when that end is
+	  below the physical top of RAM, e.g. because of a fixed hardware
+	  or TrustZone reservation.
+
 config COMMON_LIBC_CALLOC
 	bool "Common C library calloc"
 	depends on COMMON_LIBC_MALLOC

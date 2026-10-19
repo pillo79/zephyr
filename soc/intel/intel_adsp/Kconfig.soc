@@ -5,6 +5,7 @@
 
 config SOC_FAMILY_INTEL_ADSP
 	bool
+	select HAS_RAM_HEAP_SENTRY
 
 config SOC_FAMILY
 	default "intel_adsp" if SOC_FAMILY_INTEL_ADSP

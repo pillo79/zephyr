@@ -101,8 +101,7 @@ static POOL_SECTION unsigned char __aligned(HEAP_ALIGN) malloc_arena[HEAP_SIZE];
 
 #   define HEAP_BASE	ROUND_UP(USED_RAM_END_ADDR, HEAP_ALIGN)
 
-#   if (defined(CONFIG_XTENSA) && defined(CONFIG_SOC_FAMILY_INTEL_ADSP)) \
-	|| defined(CONFIG_HAS_ESPRESSIF_HAL)
+#   ifdef CONFIG_HAS_RAM_HEAP_SENTRY
 extern char _heap_sentry[];
 #    define HEAP_AVAIL	((POINTER_TO_UINT(_heap_sentry) > HEAP_BASE) ?		\
 			 (POINTER_TO_UINT(_heap_sentry) - HEAP_BASE) : 0)
@@ -110,7 +109,7 @@ extern char _heap_sentry[];
 #    define HEAP_OFFSET	((size_t)HEAP_BASE - (size_t)DT_CHOSEN_SRAM_ADDR)
 #    define HEAP_AVAIL	((HEAP_OFFSET < (size_t)DT_CHOSEN_SRAM_SIZE) ?		\
 			 ((size_t)DT_CHOSEN_SRAM_SIZE - HEAP_OFFSET) : 0)
-#   endif /* else CONFIG_XTENSA */
+#   endif /* else CONFIG_HAS_RAM_HEAP_SENTRY */
 
 #   define HEAP_SIZE	ROUND_DOWN(HEAP_AVAIL, HEAP_ALIGN)
 
